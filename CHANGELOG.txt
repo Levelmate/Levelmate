@@ -1,0 +1,26 @@
+Levelmate 1.0.0 – erste Vollversion
+===================================
+
+- Routenplaner für WoW Forever (Stufe 1–60, Horde und Allianz, alle Klassen):
+  berechnet laufend den lohnendsten nächsten Schritt aus deinen Quests,
+  verfügbaren Quests, Flugrouten, Schiffen/Zeppelinen und dem Ruhestein.
+- Fenster im Levelmate-Design: Stufe und Restzeit, empfohlene Gebiete,
+  aktueller Schritt mit Bewertung (sehr gut / gut / geht so / lohnt kaum),
+  aufklappbare "Nächste Schritte" und Questlog.
+- Richtungspfeil (optional TomTom), lernt Laufwege und Gebietsübergänge.
+- Klassenquests werden eingeplant und angekündigt.
+- Klassenlehrer: Symbol mit Anzahl neuer Zauber und Kosten; Lehrer-Schritt,
+  sobald du in der Nähe oder in seiner Hauptstadt bist.
+- Unverteilte Talentpunkte werden angezeigt.
+- Restzeit bis zur nächsten Stufe aus deinem echten Spieltempo (XP pro
+  Spielminute der letzten Stunde, AFK-Zeit zählt nicht).
+- Überspringen/Zurückholen von Schritten, Dungeon-Modus.
+- Minimap-Knopf und Einstellungsfenster.
+- Startwissen: bekannte Gebietsübergänge und Laufwege sind von Anfang an
+  dabei; /lm export und /lm import zum Teilen gelernter Wege.
+- Deutsch und Englisch: Sprache im Einstellungsfenster wählbar
+  (Automatisch = Spielsprache).
+
+English: first full release – quest route planner for WoW Forever with
+class trainer hints, talent point reminder, minimap button and a language
+setting (Automatic / Deutsch / English).

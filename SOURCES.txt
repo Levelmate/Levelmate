@@ -1,0 +1,78 @@
+Datenquellen
+
+1. QuestieDB (separates Addon, wird zur Laufzeit gelesen, keine Daten kopiert)
+   Quests, NPCs, Objekte, Gegenstände, Spawnpunkte, Quest-XP, Dropchancen,
+   Zonen- und Dungeonzuordnung für WoW Forever.
+   Code: Logonz; Daten: Muehe/TheCrux(BreakBB)/Drejjmit/Dyaxler/Cheeq/
+   TechnoHunter/Yttrium u. a. (Questie-Team). Lizenzhinweise siehe QuestieDB.
+
+2. WoW-Client-API (C_QuestLog, C_Map) für Questlog, Position und Karten.
+
+3. Grobe Gebietshinweise (nur wenn QuestieDB fehlt), abgerufen am 14.11.2026:
+   - https://foreverdb.net/guide/leveling
+   - https://bindonforever.com/leveling
+   - https://www.wowforeveraddon.com/guides/leveling-guide/
+
+
+Gebietsverbindungen (Travel.lua, ZONE_LINKS)
+-------------------------------------------
+Die Liste, welche Gebiete zu Fuss verbunden sind, stammt aus
+LibTourist Classic Era von Odica (https://www.curseforge.com/wow/addons/libtourist-classic-era),
+Version 1.15.9-release1. Lizenz:
+
+The MIT License
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+
+Anleger der Allianz-Schiffe und der Tiefenbahn (Travel.lua, TRANSPORTS)
+----------------------------------------------------------------------
+Die Kartenpositionen der Anleger Menethil, Theramore, Auberdine,
+Rut'theran sowie der Tiefenbahn (Sturmwind/Eisenschmiede) stammen aus
+"HandyNotes: TravelGuide (Classic)" v3.8 von Dathwada
+(https://www.curseforge.com/wow/addons/handynotes-travelguide-classic).
+Im Paket liegt keine Lizenzdatei; übernommen wurden nur diese Ortsangaben,
+kein Code. Zeppeline und das Schiff Ratschet/Beutebucht kommen weiterhin
+aus QuestieDB (Zeppelinmeister bzw. Hafenmeister); ihre Positionen stimmen
+mit TravelGuide überein (Abweichung unter 0,5 Kartenprozent).
+
+
+Lehrer-Zauber (TrainerData.lua)
+- Daten aus "What's Training?" von Sveng (Forever-/"Camelot"-Klassendaten),
+  https://www.curseforge.com/wow/addons/whats-training
+  Lizenz:
+
+MIT License
+
+Copyright (c) 2019
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

@@ -1,0 +1,62 @@
+Levelmate 1.0.0 – Leveling-Assistent für WoW Forever
+=====================================================
+
+Levelmate plant für dich die effizienteste Questroute von Stufe 1 bis 60:
+welche Quest du als Nächstes annimmst, erledigst oder abgibst, wohin du
+fliegst, wann sich der Ruhestein lohnt und wann du zum Klassenlehrer gehst.
+
+Voraussetzung
+- QuestieDB (liefert die Quest- und NPC-Daten).
+- Optional: TomTom (zusätzliche Wegpunkte), What's Training (Zauberpreise
+  mit Rabatten).
+
+Installation
+1. WoW schließen.
+2. Den Ordner "Levelmate" nach World of Warcraft\_forever_\Interface\AddOns
+   kopieren (oder über die CurseForge-App installieren).
+3. WoW starten. Beim ersten Einloggen erscheint die Moduswahl.
+
+Das Fenster
+- Oben: Stufe, Restzeit bis zur nächsten Stufe, unverteilte Talentpunkte.
+  Rechts: Schriftrolle (neue Zauber beim Lehrer), Pfeil an/aus, Modus,
+  Einstellungen.
+- Darunter die empfohlenen Gebiete für deine Stufe.
+- Die Karte zeigt den aktuellen Schritt mit Bewertung, XP und Zeit.
+  "Überspringen" stellt den Schritt zurück (kommt nach einer halben Stufe
+  wieder), der Pfeil daneben holt ihn sofort zurück.
+- "Nächste Schritte" und "Questlog" lassen sich per Klick auf- und zuklappen.
+- Klassenlehrer: Erscheint als Schritt, wenn du neue Zauber lernen kannst
+  und der Lehrer in der Nähe ist oder du in seiner Hauptstadt bist.
+
+Sprache
+- Im Zahnrad-Fenster unter "Sprache": Automatisch (Spielsprache), Deutsch
+  oder English. Quest-, NPC- und Gebietsnamen kommen immer in der Sprache
+  deines Spiels.
+
+Minimap-Knopf
+- Linksklick: Fenster, Rechtsklick: Modus, Umschalt+Linksklick: Pfeil.
+
+Befehle
+/lm            Fenster anzeigen
+/lm hide       Fenster ausblenden
+/lm optionen   Einstellungen
+/lm mode       Modus wählen
+/lm arrow      Pfeil ein/aus
+/lm tomtom     TomTom-Wegpunkte ein/aus
+/lm minimap    Minimap-Knopf ein/aus
+/lm scale 0.8  Fenstergröße (0.5 bis 1.5)
+/lm reset      übersprungene Quests und Fensterposition zurücksetzen
+/lm warum <Quest>  erklärt, warum eine Quest (nicht) vorgeschlagen wird
+/lm lehrer     zeigt, was Levelmate über Lehrer und Zauber weiß
+/lm export     gelernte Wege als Text zum Kopieren (z. B. für den Entwickler)
+/lm import     Wege aus so einem Text übernehmen
+/lm smart      gemessene XP pro Minute
+/lm leistung   Rechenzeit des Addons
+/lm diag       Diagnose
+
+Hinweise
+- Zeiten und XP sind Schätzungen; Levelmate lernt beim Spielen dein Tempo.
+- Levelmate bringt Startwissen mit (bekannte Gebietsübergänge und Wege) und
+  lernt beim Spielen weiter. Gelernte Wege werden nur auf deinem PC
+  gespeichert und in der Gruppe mit anderen Levelmate-Nutzern geteilt.
+- Inoffizielles Fan-Addon, nicht mit Blizzard Entertainment verbunden.
