@@ -48,6 +48,7 @@ local CONFIG = {
     nearbyBoost = 20,        -- so stark werden nahe Annahmen/Abgaben bevorzugt
     optionalFactor = 0.4,
     classValue = 1.5,
+    mobXPShare = 0.5,        -- Gegner-XP nur zur Haelfte: Kill-Quests leicht bevorzugen, nicht dominieren
     classMaxBoostEffort = 2700, -- Sekunden: laengere Klassenquests nicht vorziehen
     dungeonNear = 60,        -- Sekunden: so nah am Dungeoneingang = "du stehst davor"
     zoneStickNear = 120,     -- Sekunden: so nahe Ziele gelten nie als "anderes Gebiet"
@@ -170,6 +171,24 @@ local function ScaledXP(baseXP, questLevel, level)
     elseif diff == 7 then f = 0.6 elseif diff == 6 then f = 0.8 end
     return baseXP * f
 end
+
+-- Gegner-XP (Classic-Regel): Grundwert Stufe*5+45, mehr fuer hoehere Gegner
+-- (bis +4 Stufen), weniger fuer niedrigere, nichts fuer graue.
+local function ZeroDiff(level)
+    if level <= 7 then return 5 elseif level <= 9 then return 6 elseif level <= 11 then return 7
+    elseif level <= 15 then return 8 elseif level <= 19 then return 9 elseif level <= 29 then return 11
+    elseif level <= 39 then return 12 elseif level <= 44 then return 13 elseif level <= 49 then return 14
+    elseif level <= 54 then return 15 else return 16 end
+end
+local function MobXP(mobLevel, level)
+    if not mobLevel or not level or level >= 60 then return 0 end
+    local ml = math.floor(mobLevel + 0.5)
+    if ml <= GreyLevel(level) then return 0 end
+    local base = level * 5 + 45
+    if ml >= level then return base * (1 + 0.05 * math.min(4, ml - level)) end
+    return math.max(0, base * (1 - (level - ml) / ZeroDiff(level)))
+end
+P.MobXP = MobXP
 
 ---------------------------------------------------------------------------
 -- Erledigte Quests
@@ -410,6 +429,15 @@ local function Numbers(text)
     return nums
 end
 
+-- Durchschnittliche Stufe eines Gegners (fuer die Gegner-XP), sonst nil
+local function MobLevel(npc)
+    if not npc then return nil end
+    local lo, hi = npc.minLevel or 0, npc.maxLevel or 0
+    if hi <= 0 then return nil end
+    if lo <= 0 then lo = hi end
+    return (lo + hi) / 2
+end
+
 local function KillSeconds(npc)
     local lvl = (npc and npc.maxLevel and npc.maxLevel > 0) and npc.maxLevel or (player.level or 1)
     local t = 18 + lvl * 0.4
@@ -467,8 +495,10 @@ local function Analyze(q)
         local n = DB.Npc(type(e) == "table" and e[1] or e)
         if n then
             if (n.rank or 0) >= 1 then a.elite = true end
-            AddTarget({ kind = "kill", name = n.name, points = n.points, dungeonArea = n.dungeonArea,
-                        need = need(8), perUnit = KillSeconds(n) })
+            local t = { kind = "kill", name = n.name, points = n.points, dungeonArea = n.dungeonArea,
+                        need = need(8), perUnit = KillSeconds(n) }
+            if (n.rank or 0) < 1 then t.mobLevel, t.killsPerUnit = MobLevel(n), 1 end
+            AddTarget(t)
         end
     end
     -- 2: Objekte benutzen
@@ -503,7 +533,11 @@ local function Analyze(q)
                     else
                         friendlyOnly = false
                     end
-                    if not best or per < best then best = per end
+                    if not best or per < best then
+                        best = per
+                        if (n.rank or 0) < 1 then t.mobLevel, t.killsPerUnit = MobLevel(n), 1 / math.max(0.05, chance)
+                        else t.mobLevel, t.killsPerUnit = nil, nil end
+                    end
                     t.source = t.source or n.name
                 end
             else
@@ -513,7 +547,10 @@ local function Analyze(q)
                     friendlyOnly = false
                     AddPoints(t.points, o.points)
                     t.dungeonArea = t.dungeonArea or o.dungeonArea
-                    if not best or CONFIG.objectSeconds < best then best = CONFIG.objectSeconds end
+                    if not best or CONFIG.objectSeconds < best then
+                        best = CONFIG.objectSeconds
+                        t.mobLevel, t.killsPerUnit = nil, nil   -- aus Objekten, keine Kills
+                    end
                     t.source = t.source or o.name
                 end
             end
@@ -555,6 +592,8 @@ local function Analyze(q)
                 AddPoints(t.points, n.points); t.name = t.name or n.name
                 t.dungeonArea = t.dungeonArea or n.dungeonArea
                 t.perUnit = math.max(t.perUnit, KillSeconds(n))
+                -- Keine Gegner-XP: "Kill-Credit" heisst oft zaehmen, benutzen,
+                -- ansprechen oder begleiten (z. B. Kodozusammentrieb) - kein Kill.
             end
         end
         if t.perUnit == 0 then t.perUnit = CONFIG.unknownObjective end
@@ -702,6 +741,23 @@ RewardItemBlock = function(q)
     return nil
 end
 
+-- Quests, die sich gegenseitig ausschliessen, aber in QuestieDB nicht so markiert
+-- sind. Desolace: Wer mit den Magram verbuendet ist, wird bei den Gelkis feindselig
+-- (und umgekehrt) - die zweite Allianz kostet dann Stunden.
+local EXCLUSIVE = {
+    [1367] = { 1368 },   -- Allianz mit den Magram  <-> Allianz mit den Gelkis
+    [1368] = { 1367 },
+}
+-- Gegenstueck, das schon abgeschlossen oder abgabebereit ist (oder nil)
+local function ExclusiveDone(id)
+    for _, other in ipairs(EXCLUSIVE[id] or {}) do
+        if Done(other) then return other end
+        local e = Levelmate.Quests.Find(other)
+        if e and e.status == Levelmate.Quests.STATUS_READY then return other end
+    end
+    return nil
+end
+
 -- Liefert nil, wenn die Quest annehmbar ist, sonst den Grund (fuer /lm warum).
 local function NotAvailableReason(q)
     if Done(q.id) then return "schon abgeschlossen" end
@@ -727,6 +783,7 @@ local function NotAvailableReason(q)
         if not any then return "Vorquest " .. table.concat(q.preQuestSingle, "/") .. " fehlt" end
     end
     for _, id in ipairs(q.exclusiveTo or {}) do if id ~= 0 and (Done(id) or inLog[id]) then return "schließt sich mit Quest " .. id .. " aus" end end
+    for _, id in ipairs(EXCLUSIVE[q.id] or {}) do if Done(id) or inLog[id] then return "schließt sich mit Quest " .. id .. " aus" end end
     if q.parentQuest and q.parentQuest > 0 and not inLog[q.parentQuest] then return "Hauptquest " .. q.parentQuest .. " nicht im Log" end
     if q.availableUntilCompleted and q.availableUntilCompleted > 0 and Done(q.availableUntilCompleted) then return "nicht mehr verfügbar" end
     if q.availableStartingWith and q.availableStartingWith > 0
@@ -1075,7 +1132,22 @@ function P.Plan(modeKey, state)
         c.xp = QuestXP(q)
         if c.live and c.xp == 0 then c.xp = ClientXP(q.id) end
         local bonus, toDungeon = FollowUpBonus(q, mode)
-        c.value = c.xp + bonus
+        -- Gegner-XP: Kills fuer die Quest (bei Drops: erwartete Kills) bringen
+        -- nebenbei XP. Nur der noch offene Teil, nicht im Dungeon.
+        local mob = 0
+        for ti, t in ipairs(a.targets) do
+            if t.mobLevel and t.killsPerUnit and not (t.dungeonArea and #t.points == 0) then
+                local left = t.need or 1
+                if c.live then
+                    local lo = MatchObjective(c.live, t, ti)
+                    if lo and lo.done then left = 0
+                    elseif lo and lo.need and lo.need > 0 then left = math.max(0, lo.need - (lo.have or 0)) end
+                end
+                mob = mob + left * t.killsPerUnit * MobXP(t.mobLevel, player.level)
+            end
+        end
+        c.mobXP = mob * CONFIG.mobXPShare
+        c.value = c.xp + bonus + c.mobXP
         c.leadsToDungeon = toDungeon
         c.classQuest = ClassMaskSpecific(q.requiredClasses)
         c.isDungeon = a.dungeonArea ~= nil
@@ -1109,7 +1181,7 @@ function P.Plan(modeKey, state)
         c.giverMap = g and g.map or nil
         local above = (q.questLevel or 1) - player.level
         if above > 0 then c.eff = c.eff * math.max(0.2, 1 - CONFIG.riskPerLevel * above) end
-        c.xpPerMin = math.min(999, c.xp / c.zoneCost * 60)
+        c.xpPerMin = math.min(999, (c.xp + c.mobXP) / c.zoneCost * 60)
         if not c.isDungeon then table.insert(effs, c.eff) end
     end
     local ref = Median(effs) or 0
@@ -1132,6 +1204,9 @@ function P.Plan(modeKey, state)
         local skipReason
         if Levelmate.Smart and Levelmate.Smart.IsDeferred({ questID = c.q.id }) then
             skipReason = "von dir übersprungen"
+        elseif c.live and c.live.status ~= Levelmate.Quests.STATUS_READY and ExclusiveDone(c.q.id) then
+            -- Gegenstueck schon erledigt (z. B. Magram-Allianz abgegeben -> Gelkis-Allianz)
+            skipReason = "schließt sich mit Quest " .. ExclusiveDone(c.q.id) .. " aus"
         elseif c.isDungeon and not mode.dungeons then
             skipReason = "Dungeonquest (" .. (c.a.dungeonName or "Dungeon") .. ")"
         elseif c.a.elite and not mode.dungeons then
@@ -1212,7 +1287,7 @@ function P.Plan(modeKey, state)
             if above > 0 then eff = eff * math.max(0.2, 1 - CONFIG.riskPerLevel * above) end
             if eff >= ref * mode.threshold then
                 c.skipReason, c.sharedTrip = nil, true
-                c.eff, c.xpPerMin = eff, math.min(999, c.xp / cost * 60)
+                c.eff, c.xpPerMin = eff, math.min(999, (c.xp + (c.mobXP or 0)) / cost * 60)
                 table.insert(kept, c)
                 if c.live then
                     for i, sc in ipairs(result.skipped) do
@@ -1460,6 +1535,11 @@ function P.Plan(modeKey, state)
         if act.kind == "TURNIN" then
             local hubValue, waiting = 0, 0
             local localWait = false
+            local waitFor = {}   -- fuer /lm warum: worauf diese Abgabe wartet
+            local function WaitOn(o, why)
+                waiting = waiting + 1
+                waitFor[#waitFor + 1] = { name = o.c and o.c.q and o.c.q.name or o.targetName or "?", why = why, act = o }
+            end
             local tHub = TravelSeconds(here, act.target)
             -- Schaltet eine Abgabe in diesem Lager eine Folgequest frei? Dann lieber
             -- gleich abgeben und die neue Quest mitnehmen.
@@ -1476,18 +1556,18 @@ function P.Plan(modeKey, state)
                 elseif o.kind == "DO" and o.tObj then
                     if tHub > CONFIG.nearbyPickup and o.tObj < tHub * CONFIG.closerShare then
                         -- Ein offenes Ziel liegt deutlich naeher als diese Abgabe -> erst das Ziel.
-                        waiting = waiting + 1
+                        WaitOn(o, "naeher")
                     elseif o.tObj <= CONFIG.localWork and o.tObj <= tHub + CONFIG.localWorkSlack then
                         -- Ein offenes Ziel ist direkt hier (z. B. im selben Gebaeude/Lager):
                         -- erst hier fertig machen, dann abgeben. Die Luftlinie kennt keine
                         -- Mauern - "erst raus und wieder rein" ist im Spiel meist laenger.
-                        waiting = waiting + 1
+                        WaitOn(o, "hier")
                         localWait = true
                     elseif tHub > CONFIG.nearbyPickup and not unlocksSomething and o.finisher
                            and (Yards(o.finisher, act.target) or 1e9) < CONFIG.hubRadius then
                         -- Diese offene Quest wird im selben Lager abgegeben: erst erledigen,
                         -- dann alles zusammen abgeben (spart einen Weg zum Lager).
-                        waiting = waiting + 1
+                        WaitOn(o, "lager")
                     end
                 end
             end
@@ -1497,6 +1577,7 @@ function P.Plan(modeKey, state)
                 act.comeBack = true
             end
             act.hubValue, act.waiting, act.localWait = hubValue, waiting, localWait
+            act.waitFor = waitFor
             act.travel = TravelSeconds(here, act.target)
         end
     end
@@ -1633,6 +1714,31 @@ function P.Plan(modeKey, state)
         end
     end
     table.sort(actions, function(x, y) return x.score > y.score end)
+    -- Abgabe wartet auf naehere Ziele - aber Schritt 1 ist gar keins davon (z. B. eine
+    -- weit entfernte Annahme)? Dann ist das Warten sinnlos: Liegt die Abgabe naeher
+    -- als Schritt 1, wird sie normal bewertet (erst abgeben, dann weiter).
+    do
+        local top = actions[1]
+        if top and top.kind ~= "TURNIN" and top.score ~= math.huge and top.target and here then
+            local tTop = TravelSeconds(here, top.target)
+            local changed = false
+            for _, act in ipairs(actions) do
+                if act.kind == "TURNIN" and (act.waiting or 0) > 0 and not act.comeBack and not act.localWait
+                   and act.travel and act.travel < tTop then
+                    local blocks = false
+                    for _, w in ipairs(act.waitFor or {}) do if w.act == top then blocks = true; break end end
+                    if not blocks then
+                        act.score = act.score / CONFIG.waitFactor
+                        act.pen = (act.pen or ""):gsub(" warten", "")
+                        if act.pen == "" then act.pen = nil end
+                        act.waitIgnored = true
+                        changed = true
+                    end
+                end
+            end
+            if changed then table.sort(actions, function(x, y) return x.score > y.score end) end
+        end
+    end
     -- Auf dem Weg: Liegt eine Abgabe (oder Annahme) fast genau auf dem Weg zum
     -- besten Schritt, wird sie vorher erledigt - z. B. am Grossen Aufzug auf
     -- dem Weg nach Tausend Nadeln. Umweg hoechstens 15 % (+30 s).
@@ -1810,6 +1916,7 @@ function P.Explain(query, print)
             math.floor(a.effort), a.elite and L(", Elite") or "", a.dungeonName and (L(", Dungeon ") .. a.dungeonName) or ""))
         local c = lastPlan and lastPlan.byId and lastPlan.byId[q.id]
         if c then
+            if (c.mobXP or 0) >= 1 then print(string.format(L("  - Gegner-XP nebenbei: ≈%d"), math.floor(c.mobXP))) end
             print(string.format(L("  - Bewertung: ≈%d XP, ~%d XP/min%s"), math.floor(c.xp), math.floor(c.xpPerMin),
                 c.skipReason and (L(", übersprungen: ") .. LT(c.skipReason)) or L(", wird eingeplant")))
             for i, act in ipairs(lastPlan.actions) do
@@ -1825,6 +1932,22 @@ function P.Explain(query, print)
                         act.clientWaypoint and L("(Wegpunkt des Spiels)") or "",
                         math.floor(way), work > 0 and string.format(L(", Arbeit vor Ort ~%d min"), math.floor(work / 60 + 0.5)) or "",
                         math.floor(act.seconds or 0), act.pen and act.pen:gsub("%S+", L) or L(" keine")))
+                    if act.kind == "TURNIN" then
+                        if act.comeBack then
+                            print(L("  - Abgabe wartet: du kommst später ohnehin wieder in die Nähe"))
+                        end
+                        local seen, n = {}, 0
+                        for _, w in ipairs(act.waitFor or {}) do
+                            local key = w.name .. w.why
+                            if not seen[key] and n < 5 then
+                                seen[key], n = true, n + 1
+                                local why = (w.why == "naeher" and L("Ziel liegt deutlich näher"))
+                                    or (w.why == "hier" and L("Ziel direkt hier"))
+                                    or L("wird im selben Lager abgegeben")
+                                print(L("  - Abgabe wartet auf: ") .. w.name .. " (" .. why .. ")")
+                            end
+                        end
+                    end
                     if c.factor and math.abs(c.factor - 1) > 0.05 then
                         print(string.format(L("  - gelernter Zeitfaktor für diese Questart: ×%.2f"), c.factor))
                     end

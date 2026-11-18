@@ -2,7 +2,7 @@ local addonName = ...
 local L = Levelmate.L
 Levelmate = Levelmate or {}
 Levelmate.name = addonName
-Levelmate.version = "1.0.0"
+Levelmate.version = "1.0.1"
 
 local function Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage(L("|cff66ccffLevelmate|r: ") .. tostring(msg))
@@ -595,7 +595,7 @@ end
 
 local function FirstOpenObjective(c)
     if c.live then
-        for _, o in ipairs(c.live.objectives) do if not o.done then return o.text end end
+        for _, o in ipairs(c.live.objectives) do if not o.done then return Levelmate.Quests.ShowText(o) end end
     end
     local t = c.a and c.a.targets[1]
     if t then
@@ -681,7 +681,7 @@ function DescribeActionRaw(act)
     elseif act.kind == "DO" then
         local obj
         if act.liveObj and act.liveObj.text then
-            obj = act.liveObj.text
+            obj = Levelmate.Quests.ShowText(act.liveObj)
         elseif act.obj then
             local t = act.obj
             obj = string.format("%dx %s", t.need or 1, t.name or "?")
@@ -802,7 +802,7 @@ local function RenderQuestLog(plan)
         if lq.status == Q.STATUS_ACTIVE then
             for j = 1, math.min(#lq.objectives, 3) do
                 local o = lq.objectives[j]
-                table.insert(lines, "     " .. (o.done and "|cff00ff00" or "|cffcccccc") .. o.text .. "|r")
+                table.insert(lines, "     " .. (o.done and "|cff00ff00" or "|cffcccccc") .. Levelmate.Quests.ShowText(o) .. "|r")
             end
         end
     end
@@ -865,7 +865,9 @@ local function RatingText(act, plan)
         else label = L("|cffff8040lohnt kaum|r") end
         label = label .. "  |cff888888·|r  "
     end
-    local mins = (rate > 0) and (c.xp / rate) or nil
+    local mob = c.mobXP or 0
+    if mob >= 50 then est = est .. string.format(L(" + ≈%d Gegner"), math.floor(mob / 10 + 0.5) * 10) end
+    local mins = (rate > 0) and ((c.xp + mob) / rate) or nil
     if mins then
         return string.format(L("%s≈%d XP%s · ~%d min"), label, math.floor(c.xp), est, math.max(1, math.floor(mins + 0.5)))
     end
@@ -1118,7 +1120,7 @@ RefreshInner = function()
             if picked[lq.questID] then
                 local open = {}
                 for _, o in ipairs(lq.objectives or {}) do
-                    if not o.done then table.insert(open, o.text) end
+                    if not o.done then table.insert(open, Levelmate.Quests.ShowText(o)) end
                 end
                 local status = (lq.status == Q.STATUS_READY) and L("|cff00ff00abgabebereit|r")
                     or (#open > 0 and table.concat(open, ", ") or "")
