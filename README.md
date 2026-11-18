@@ -1,16 +1,23 @@
-## Hi there 👋
+ Levelmate – Leveling Assistant for WoW Forever
 
-<!--
-**Levelmate/Levelmate** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
+Always know your next step. Levelmate plans the most efficient leveling route for WoW Forever (level 1–60, Horde & Alliance, all classes).
 
-Here are some ideas to get you started:
+## Features
+- Smart next step from your quests, flight paths, boats/zeppelins and hearthstone
+- Recommended zones and a rating for every step
+- Direction arrow (TomTom optional)
+- Trainer reminder – only when you're near your trainer or in its capital
+- Talent point reminder
+- Realistic time-to-level based on your play pace
+- Mob XP counted for kill and drop quests
+- English & German
 
-- 🔭 I’m currently working on ...
-- 🌱 I’m currently learning ...
-- 👯 I’m looking to collaborate on ...
-- 🤔 I’m looking for help with ...
-- 💬 Ask me about ...
-- 📫 How to reach me: ...
-- 😄 Pronouns: ...
-- ⚡ Fun fact: ...
--->
+## Download
+CurseForge: search for **Levelmate** in the CurseForge app.
+Requires **QuestieDB**.
+
+## Commands
+`/lm` · `/lm settings` · `/lm export` · `/lm why <quest>`
+
+## Community
+Discord: https://discord.gg/zBpUcCVqR8 – help, bug reports, ideas
