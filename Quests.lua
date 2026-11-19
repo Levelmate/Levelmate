@@ -106,20 +106,6 @@ function Q.Rebuild()
     return list
 end
 
--- Anzeigetext eines Questziels. Rufziele kommen vom Spiel als
--- "Gelkisklan: Feindselig / Freundlich" (jetzt / Ziel) - das liest sich wie
--- "erledigt". Darum: "Gelkisklan: Feindselig (Ziel: Freundlich)".
-function Q.ShowText(o)
-    local t = o and o.text or ""
-    if o and o.type == "reputation" and not o.done then
-        local name, now, goal = t:match("^(.-):%s*(.-)%s*/%s*(.-)$")
-        if name and now ~= "" and goal ~= "" then
-            return name .. ": " .. now .. " (" .. Levelmate.L("Ziel") .. ": " .. goal .. ")"
-        end
-    end
-    return t
-end
-
 -- Liefert die zuletzt eingelesene Liste (gleiche Tabelle fuer alle Anzeigen).
 function Q.GetList() return snapshot.list end
 

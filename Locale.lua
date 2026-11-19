@@ -63,15 +63,6 @@ function Levelmate.LT(s)
     return s
 end
 
--- 1.0.1
-EN["Ziel"] = "goal"
-EN["  - Abgabe wartet: du kommst später ohnehin wieder in die Nähe"] = "  - Turn-in waits: you will pass by here again later anyway"
-EN["  - Abgabe wartet auf: "] = "  - Turn-in waits for: "
-EN["Ziel liegt deutlich näher"] = "objective is much closer"
-EN["Ziel direkt hier"] = "objective right here"
-EN["wird im selben Lager abgegeben"] = "turned in at the same camp"
-EN[" + ≈%d Gegner"] = " + ≈%d from mobs"
-EN["  - Gegner-XP nebenbei: ≈%d"] = "  - Mob XP on the side: ≈%d"
 EN["|cffaaaaaaanderer Kontinent|r"] = "|cffaaaaaaother continent|r"
 EN["|cff00ff00Ziel erreicht|r"] = "|cff00ff00Target reached|r"
 EN["Leistung der letzten %d s:"] = "Performance over the last %d s:"

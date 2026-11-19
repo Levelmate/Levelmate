@@ -1,21 +1,3 @@
-Levelmate 1.0.1
-===============
-
-- Desolace: "Allianz mit den Magram" und "Allianz mit den Gelkis" schließen sich
-  aus. Ist eine davon erledigt, wird die andere nicht mehr eingeplant.
-- Rufziele klarer: "Gelkisklan: Feindselig (Ziel: Freundlich)" statt
-  "Feindselig / Freundlich".
-- /lm warum <Quest> zeigt bei Abgaben, worauf sie gerade warten.
-- Gegner-XP: Bei Kill- und Drop-Quests zählt jetzt auch die XP der Gegner
-  (geschätzt nach Gegner- und Spielerstufe). Anzeige z. B. "≈660 XP + ≈1700 Gegner".
-- Fertige Abgaben werden nicht mehr zurückgestellt, wenn der nächste Schritt
-  ohnehin woanders hinführt und die Abgabe näher liegt.
-
-English: Magram/Gelkis alliances are now mutually exclusive, clearer
-reputation goals, /lm why <quest> explains why a turn-in is waiting,
-mob XP now counts for kill/drop quests, nearby turn-ins are no longer
-held back for an unrelated far-away step.
-
 Levelmate 1.0.0 – erste Vollversion
 ===================================
 
