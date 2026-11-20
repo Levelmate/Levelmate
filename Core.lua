@@ -2,7 +2,7 @@ local addonName = ...
 local L = Levelmate.L
 Levelmate = Levelmate or {}
 Levelmate.name = addonName
-Levelmate.version = "1.0.0"
+Levelmate.version = "1.0.4"
 
 local function Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage(L("|cff66ccffLevelmate|r: ") .. tostring(msg))
@@ -153,6 +153,58 @@ local function Text(template, parent, width)
     return fs
 end
 
+-- Klickbare Questnamen: "|Hlevelmate:q:<id>|h...|h" oeffnet die Quest im Questlog
+local function QLink(id, text)
+    if not id then return text end
+    return "|Hlevelmate:q:" .. id .. "|h" .. text .. "|h"
+end
+local function OpenQuest(id)
+    id = tonumber(id)
+    if not id then return end
+    local idx = C_QuestLog and C_QuestLog.GetLogIndexForQuestID and C_QuestLog.GetLogIndexForQuestID(id)
+    if not idx or idx == 0 then
+        local q = Levelmate.DB.Quest and Levelmate.DB.Quest(id)
+        Print(string.format(L("„%s“ ist noch nicht in deinem Questlog – erst annehmen."), q and q.name or tostring(id)))
+        return
+    end
+    -- neuer Client: Questlog neben der Karte; alter: eigenes Questlog-Fenster
+    if QuestMapFrame_OpenToQuestDetails then
+        pcall(QuestMapFrame_OpenToQuestDetails, id)
+    elseif QuestLog_OpenToQuest then
+        pcall(QuestLog_OpenToQuest, idx)
+    else
+        if C_QuestLog.SetSelectedQuest then pcall(C_QuestLog.SetSelectedQuest, id) end
+        if QuestLog_SetSelection then pcall(QuestLog_SetSelection, idx) end
+        if ToggleQuestLog then pcall(ToggleQuestLog) elseif QuestLogFrame then ShowUIPanel(QuestLogFrame) end
+    end
+end
+Levelmate.OpenQuest = OpenQuest
+local function EnableQuestLinks(frame)
+    if not frame or not frame.SetHyperlinksEnabled then return end
+    frame:SetHyperlinksEnabled(true)
+    -- Klicks brauchen Maus; Ziehen weiter ans Fenster durchreichen
+    frame:EnableMouse(true)
+    if frame.RegisterForDrag then
+        frame:RegisterForDrag("LeftButton")
+        frame:SetScript("OnDragStart", function() panel:StartMoving() end)
+        frame:SetScript("OnDragStop", function()
+            local f = panel:GetScript("OnDragStop")
+            if f then f(panel) else panel:StopMovingOrSizing() end
+        end)
+    end
+    frame:SetScript("OnHyperlinkClick", function(_, link)
+        local id = type(link) == "string" and link:match("^levelmate:q:(%d+)")
+        if id then OpenQuest(id) end
+    end)
+    frame:SetScript("OnHyperlinkEnter", function(self, link)
+        if type(link) ~= "string" or not link:match("^levelmate:q:") then return end
+        GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
+        GameTooltip:SetText(L("Klicken: Quest im Questlog öffnen"))
+        GameTooltip:Show()
+    end)
+    frame:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
+end
+
 local function Button(text, width)
     local b = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     b:SetSize(width, 22)
@@ -235,6 +287,162 @@ Tip(panel.arrowButton, "Pfeil", "Richtungspfeil ein- oder ausblenden.")
 -- Neue Zauber beim Lehrer: Symbol mit Anzahl, nur sichtbar wenn es etwas zu lernen gibt
 panel.learnButton = IconButton("Interface\\Icons\\INV_Scroll_03")
 panel.learnButton:SetPoint("RIGHT", panel.arrowButton, "LEFT", -6, 0)
+
+---------------------------------------------------------------------------
+-- Dungeon-Fenster (Modi mit Dungeons): Dungeons deiner Stufe und ihre Quests
+---------------------------------------------------------------------------
+panel.dungeonButton = IconButton("Interface\\Icons\\INV_Misc_Key_03")
+panel.dungeonButton:SetPoint("RIGHT", panel.arrowButton, "LEFT", -6, 0)
+panel.dungeonButton:Hide()
+Tip(panel.dungeonButton, "Dungeons", "Dungeons deiner Stufe mit ihren Quests. Quests abholen oder direkt hingehen.")
+
+local dframe = CreateFrame("Frame", "LevelmateDungeonFrame", UIParent, "BackdropTemplate")
+dframe:SetSize(300, 120)
+dframe:SetFrameStrata("MEDIUM")
+dframe:SetBackdrop(panel:GetBackdrop())
+dframe:SetBackdropColor(0.035, 0.055, 0.12, 0.92)
+dframe:SetBackdropBorderColor(0.79, 0.60, 0.23, 0.9)
+dframe:SetPoint("TOPLEFT", panel, "TOPRIGHT", 6, 0)
+dframe:SetClampedToScreen(true)
+dframe:EnableMouse(true)
+dframe:Hide()
+table.insert(UISpecialFrames, "LevelmateDungeonFrame")
+dframe.title = dframe:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+dframe.title:SetPoint("TOPLEFT", 10, -9)
+dframe.title:SetTextColor(GOLD[1], GOLD[2], GOLD[3])
+dframe.title:SetText(L("Dungeons"))
+dframe.sub = dframe:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+dframe.sub:SetPoint("TOPLEFT", dframe.title, "BOTTOMLEFT", 0, -2)
+dframe.sub:SetTextColor(0.7, 0.7, 0.7)
+dframe.close = CreateFrame("Button", nil, dframe, "UIPanelCloseButton")
+dframe.close:SetPoint("TOPRIGHT", dframe, "TOPRIGHT", 2, 2)
+dframe.slots = {}
+Levelmate.DungeonFrame = dframe
+
+local STATUS_TXT = { ideal = "ideal", soon = "bald grau", low = "ab Stufe %d", grey = "grau" }
+local STATUS_COL = { ideal = { 0.4, 1, 0.4 }, soon = { 1, 0.75, 0.2 }, low = { 0.8, 0.5, 0.5 }, grey = { 0.6, 0.6, 0.6 } }
+
+local function DSlot(i)
+    local s = dframe.slots[i]
+    if s then return s end
+    s = CreateFrame("Frame", nil, dframe, "BackdropTemplate")
+    s:SetWidth(280)
+    s:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
+    s:SetBackdropColor(0.06, 0.09, 0.17, 0.85)
+    s.name = s:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    s.name:SetPoint("TOPLEFT", 8, -6)
+    s.name:SetJustifyH("LEFT")
+    s.lvl = s:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    s.lvl:SetPoint("TOPRIGHT", -8, -8)
+    s.info = s:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    s.info:SetPoint("TOPLEFT", s.name, "BOTTOMLEFT", 0, -3)
+    s.info:SetWidth(264); s.info:SetJustifyH("LEFT")
+    if s.info.SetWordWrap then s.info:SetWordWrap(true) end
+    s.focus = CreateFrame("Button", nil, s, "UIPanelButtonTemplate")
+    s.focus:SetSize(120, 20)
+    s.go = CreateFrame("Button", nil, s, "UIPanelButtonTemplate")
+    s.go:SetSize(110, 20)
+    s.focus:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText(L("Quests abholen"))
+        GameTooltip:AddLine(L("Levelmate holt die Dungeonquests dieses Dungeons als Nächstes ab (nochmal klicken: aus)."), 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    s.go:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText(L("Jetzt hin"))
+        GameTooltip:AddLine(L("Der Dungeon wird sofort der nächste Schritt, z. B. wenn deine Gruppe bereit ist. Danach geht die Route normal weiter."), 1, 1, 1, true)
+        GameTooltip:Show()
+    end)
+    s.focus:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    s.go:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    dframe.slots[i] = s
+    return s
+end
+
+local function QuestList(list, n)
+    local names = {}
+    for i = 1, math.min(#list, n) do
+        local x = list[i]
+        local zone = x.map and Levelmate.Planner.MapName(x.map)
+        names[#names + 1] = (x.q.name or "?") .. (zone and (" (" .. zone .. ")") or "")
+    end
+    if #list > n then names[#names + 1] = string.format(L("+%d weitere"), #list - n) end
+    return table.concat(names, ", ")
+end
+
+function Levelmate.UpdateDungeonFrame()
+    if not dframe:IsShown() then return end
+    local list = Levelmate.Planner.DungeonOverview and Levelmate.Planner.DungeonOverview() or {}
+    dframe.sub:SetText(string.format(L("Stufe %d · passend für dich"), UnitLevel("player") or 0))
+    local y, shown = -40, 0
+    for i, e in ipairs(list) do
+        if i > 6 then break end
+        shown = i
+        local s = DSlot(i)
+        s:ClearAllPoints()
+        s:SetPoint("TOPLEFT", dframe, "TOPLEFT", 10, y)
+        s:SetBackdropBorderColor(0.79, 0.60, 0.23, (e.going or e.focused or e.status == "ideal") and 0.9 or 0.25)
+        s.name:SetText(e.name)
+        local st = STATUS_TXT[e.status] or ""
+        if e.status == "low" then st = string.format(L(st), e.min) else st = L(st) end
+        local col = STATUS_COL[e.status] or { 1, 1, 1 }
+        s.lvl:SetText(string.format("%d–%d · %s", e.min or 0, e.max or 0, st))
+        s.lvl:SetTextColor(col[1], col[2], col[3])
+        local lines = {}
+        local ready = 0
+        for _, x in ipairs(e.inLog) do if x.ready then ready = ready + 1 end end
+        local parts = {}
+        parts[#parts + 1] = string.format(L("%d im Log"), #e.inLog) .. (ready > 0 and string.format(L(" (%d fertig)"), ready) or "")
+        parts[#parts + 1] = string.format(L("%d abholbar"), #e.available)
+        if #e.blocked > 0 then parts[#parts + 1] = string.format(L("%d brauchen eine Vorquest"), #e.blocked) end
+        lines[#lines + 1] = table.concat(parts, " · ")
+        if #e.available > 0 then lines[#lines + 1] = L("Abholen: ") .. QuestList(e.available, 2) end
+        if e.story and CharDB().mode == "story" then lines[#lines + 1] = "|cffb070ff" .. L("Finale von: ") .. e.story .. "|r" end
+        local ent = e.entrance and Levelmate.Planner.MapName(e.entrance.map)
+        lines[#lines + 1] = (e.xp > 0 and string.format(L("≈ %d XP aus Quests"), math.floor(e.xp + 0.5)) or L("keine Quests bekannt"))
+            .. (ent and (L(" · Eingang: ") .. ent) or "")
+        s.info:SetText(table.concat(lines, "\n"))
+        local infoH = s.info:GetStringHeight() or 40
+        s.focus:ClearAllPoints(); s.go:ClearAllPoints()
+        s.focus:SetPoint("TOPLEFT", s.info, "BOTTOMLEFT", 0, -5)
+        s.go:SetPoint("LEFT", s.focus, "RIGHT", 6, 0)
+        s.focus:SetText(e.focused and L("Abholen: an") or L("Quests abholen"))
+        s.focus:SetShown(#e.available > 0)
+        if not s.focus:IsShown() then s.go:ClearAllPoints(); s.go:SetPoint("TOPLEFT", s.info, "BOTTOMLEFT", 0, -5) end
+        s.go:SetText(e.going and L("Doch nicht") or L("Jetzt hin"))
+        local area, name = e.area, e.name
+        s.focus:SetScript("OnClick", function()
+            local on = Levelmate.Planner.SetDungeonFocus(area)
+            Print(on and string.format(L("Levelmate holt jetzt zuerst die Quests für %s ab."), name)
+                or string.format(L("Quests für %s: wieder normal eingeplant."), name))
+            Levelmate.Refresh()
+        end)
+        s.go:SetScript("OnClick", function()
+            local on = Levelmate.Planner.SetDungeonGo(area)
+            Print(on and string.format(L("Nächster Schritt: %s. Viel Spaß!"), name)
+                or string.format(L("%s abgebrochen – die Route geht normal weiter."), name))
+            Levelmate.Refresh()
+        end)
+        local h = 6 + 16 + 3 + infoH + 5 + 20 + 8
+        s:SetHeight(h)
+        s:Show()
+        y = y - h - 6
+    end
+    for i = shown + 1, #dframe.slots do dframe.slots[i]:Hide() end
+    if shown == 0 then
+        dframe.sub:SetText(L("Gerade kein Dungeon für deine Stufe bekannt."))
+        y = y - 4
+    end
+    dframe:SetHeight(-y + 6)
+end
+dframe:SetScript("OnShow", function()
+    local ok, err = pcall(Levelmate.UpdateDungeonFrame)
+    if not ok then Print("|cffff4040Dungeon-Fenster:|r " .. tostring(err)) end
+end)
+panel.dungeonButton:SetScript("OnClick", function()
+    if dframe:IsShown() then dframe:Hide() else dframe:Show() end
+end)
 panel.learnButton.count = panel.learnButton:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmall")
 panel.learnButton.count:SetPoint("BOTTOMRIGHT", panel.learnButton, "BOTTOMRIGHT", 3, -2)
 panel.learnButton.count:SetTextColor(0.5, 1, 0.5)
@@ -322,6 +530,8 @@ panel.cardAccent:SetWidth(3)
 SolidColor(panel.cardAccent, 1, 0.82, 0, 0.9)
 panel.kindLabel = Text("GameFontNormalSmall", panel.card, CARD_TEXT_W)
 panel.stepTitle = Text("GameFontNormalLarge", panel.card, CARD_TEXT_W)
+EnableQuestLinks(panel.card)
+EnableQuestLinks(content)
 panel.stepDetail = Text("GameFontHighlightSmall", panel.card, CARD_TEXT_W)
 panel.stepDetail:SetTextColor(0.82, 0.82, 0.82)
 panel.badge = Text("GameFontHighlightSmall", panel.card, CARD_TEXT_W)
@@ -364,9 +574,13 @@ panel.backButton:SetPushedTexture("Interface\\Buttons\\UI-SpellbookIcon-PrevPage
 panel.backButton:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
 Tip(panel.backButton, "Zurückholen", "Holt die zuletzt übersprungene Quest sofort wieder in die Route.")
 panel.skipButton = CreateFrame("Button", nil, panel.card, "UIPanelButtonTemplate")
-panel.skipButton:SetSize(110, 20)
+panel.skipButton:SetSize(100, 20)
 panel.skipButton:SetText(L("Überspringen"))
-Tip(panel.skipButton, "Überspringen", "Stellt diesen Schritt zurück. Er kommt nach einer halben Stufe von selbst wieder.")
+Tip(panel.skipButton, "Überspringen", "Diese Quest kommt nicht mehr in die Route. Der Pfeil holt sie zurück, /lm ausgelassen zeigt alle.")
+panel.laterButton = CreateFrame("Button", nil, panel.card, "UIPanelButtonTemplate")
+panel.laterButton:SetSize(70, 20)
+panel.laterButton:SetText(L("Später"))
+Tip(panel.laterButton, "Später", "Stellt diesen Schritt zurück. Er kommt nach einem halben Level von selbst wieder.")
 
 panel.questTitle = Text("GameFontNormal", content)
 panel.questTitle:SetText(HeaderText(L("Questlog"), true))
@@ -417,10 +631,17 @@ local function Layout()
     if HasText(panel.stepDetail) then Place(panel.stepDetail, 4, panel.card, CARD_PAD + 2) end
     if HasText(panel.badge) then Place(panel.badge, 6, panel.card, CARD_PAD + 2) end
     y = y - 8
+    if panel.UpdateSkip then panel.UpdateSkip() end
     panel.skipButton:ClearAllPoints()
     panel.skipButton:SetPoint("TOPRIGHT", panel.card, "TOPRIGHT", -8, y)
+    panel.laterButton:ClearAllPoints()
+    if panel.skipButton:IsShown() then
+        panel.laterButton:SetPoint("RIGHT", panel.skipButton, "LEFT", -4, 0)
+    else
+        panel.laterButton:SetPoint("TOPRIGHT", panel.card, "TOPRIGHT", -8, y)
+    end
     panel.backButton:ClearAllPoints()
-    panel.backButton:SetPoint("RIGHT", panel.skipButton, "LEFT", -4, 0)
+    panel.backButton:SetPoint("RIGHT", panel.laterButton, "LEFT", -4, 0)
     y = y - 20
     local cardH = -y + 9
     panel.card:SetHeight(cardH)
@@ -433,7 +654,15 @@ local function Layout()
     -- Scrollbereich
     local top = y
     local height = (Levelmate_DB and Levelmate_DB.panelHeight) or DEFAULT_HEIGHT
-    if height < -top + 80 then height = -top + 80 end
+    -- Ganz klein gezogen: nur die Karte, ohne "Naechste Schritte"/Questlog
+    local collapsed = Levelmate_DB and Levelmate_DB.panelCollapsed
+    if collapsed then
+        height = -top + 2
+        scroll:Hide(); slider:Hide()
+    else
+        scroll:Show()
+        if height < -top + 60 then height = -top + 60 end
+    end
     panel:SetHeight(height)
     scroll:ClearAllPoints()
     scroll:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, top)
@@ -472,6 +701,7 @@ local function Layout()
         panel.questText:Hide()
     end
     if HasText(panel.xpText) then Place(panel.xpText, 8, content) end
+    if collapsed then return end
     local contentH = -y + 4
     content:SetHeight(contentH)
     local visible = height + top - 14
@@ -484,9 +714,9 @@ end
 -- Ecke unten rechts: Fensterhoehe ziehen
 panel:SetResizable(true)
 if panel.SetResizeBounds then
-    pcall(panel.SetResizeBounds, panel, WIDTH, 200, WIDTH, 1000)
+    pcall(panel.SetResizeBounds, panel, WIDTH, 100, WIDTH, 1000)
 elseif panel.SetMinResize then
-    pcall(panel.SetMinResize, panel, WIDTH, 200); pcall(panel.SetMaxResize, panel, WIDTH, 1000)
+    pcall(panel.SetMinResize, panel, WIDTH, 100); pcall(panel.SetMaxResize, panel, WIDTH, 1000)
 end
 local grip = CreateFrame("Button", nil, panel)
 grip:SetSize(14, 14)
@@ -494,10 +724,24 @@ grip:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -3, 3)
 grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
 grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
 grip:SetPushedTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Down")
-grip:SetScript("OnMouseDown", function() panel:StartSizing("BOTTOM") end)
+grip:SetScript("OnMouseDown", function()
+    -- eingeklappt: beim Ziehen wieder Platz fuer den Scrollbereich lassen
+    panel.cardBottom = panel:GetHeight()
+    panel:StartSizing("BOTTOM")
+end)
 grip:SetScript("OnMouseUp", function()
     panel:StopMovingOrSizing()
-    Levelmate_DB.panelHeight = math.floor(panel:GetHeight() + 0.5)
+    local h = math.floor(panel:GetHeight() + 0.5)
+    -- Unter die Karte (+ ca. 2 Zeilen) gezogen -> nur die Karte zeigen
+    local cardOnly = scroll:IsShown() and (panel:GetTop() and scroll:GetTop()) and (panel:GetTop() - scroll:GetTop()) or nil
+    local limit = (cardOnly or (panel.cardBottom or h)) + 40
+    if Levelmate_DB.panelCollapsed then
+        -- eingeklappt: nur wieder aufklappen, wenn deutlich groesser gezogen
+        if h > (panel.cardBottom or h) + 30 then Levelmate_DB.panelCollapsed = nil end
+    elseif h < limit then
+        Levelmate_DB.panelCollapsed = true
+    end
+    Levelmate_DB.panelHeight = h
     -- StartSizing kann den Anker veraendern -> Position neu speichern
     local point, _, rel, x, y = panel:GetPoint()
     Levelmate_DB.panelPos = { point, rel, x, y }
@@ -520,7 +764,7 @@ end
 -- Startdialog: Modus waehlen
 ---------------------------------------------------------------------------
 local dialog = CreateFrame("Frame", "LevelmateModeDialog", UIParent, "BackdropTemplate")
-dialog:SetSize(360, 230)
+dialog:SetSize(360, 310)
 dialog:SetPoint("CENTER")
 dialog:SetFrameStrata("DIALOG")
 dialog:SetBackdrop(panel:GetBackdrop())
@@ -538,6 +782,7 @@ dText:SetText("Du kannst den Modus jederzeit oben im Fenster ändern.")
 local MODE_INFO = {
     { key = "quests",   text = "Nur Quests",        desc = "Solo questen. Dungeon- und Elitequests werden ausgelassen." },
     { key = "dungeons", text = "Quests + Dungeons", desc = "Mit Dungeonquests und deren Vorquests." },
+    { key = "story",    text = "Story + Dungeons",  desc = "Slow-Leveling: Die Geschichte zählt, nicht das Tempo. Questreihen bis zum Ende, Dungeons als Finale, kaum Füllquests." },
 }
 
 local function SetMode(key)
@@ -552,7 +797,7 @@ local prev
 for i, m in ipairs(MODE_INFO) do
     local b = CreateFrame("Button", nil, dialog, "UIPanelButtonTemplate")
     b:SetSize(150, 24)
-    if prev then b:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -22) else b:SetPoint("TOPLEFT", dialog, "TOPLEFT", 16, -64) end
+    if prev then b:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -30) else b:SetPoint("TOPLEFT", dialog, "TOPLEFT", 16, -64) end
     b:SetText(m.text)
     b:SetScript("OnClick", function() SetMode(m.key) end)
     local d = dialog:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -574,6 +819,29 @@ dialog:SetScript("OnShow", function()
 end)
 
 local function ShowModeDialog() dialog:Show() end
+
+-- Story-Modus: graue Questreihe zu Ende spielen oder ueberspringen?
+local greyAsked = {}
+if StaticPopupDialogs then
+    StaticPopupDialogs["LEVELMATE_GREY_STORY"] = {
+        text = L("Levelmate: Die Geschichte „%s“ ist für deine Stufe grau geworden (kaum noch Erfahrung).\n\nWillst du sie trotzdem zu Ende spielen?"),
+        button1 = L("Zu Ende spielen"),
+        button2 = L("Überspringen"),
+        OnAccept = function(_, root)
+            Levelmate.Planner.SetGreyChoice(root, "finish")
+            Print(L("Die Geschichte wird zu Ende gespielt."))
+            Levelmate.Refresh()
+        end,
+        OnCancel = function(_, root, reason)
+            if reason == "clicked" then
+                Levelmate.Planner.SetGreyChoice(root, "skip")
+                Print(L("Die graue Geschichte wird übersprungen. Ihre Quests kannst du abbrechen, wenn das Log voll wird."))
+                Levelmate.Refresh()
+            end
+        end,
+        timeout = 0, whileDead = true, hideOnEscape = false, preferredIndex = 3,
+    }
+end
 Levelmate.ShowModeDialog = ShowModeDialog
 
 ---------------------------------------------------------------------------
@@ -595,7 +863,7 @@ end
 
 local function FirstOpenObjective(c)
     if c.live then
-        for _, o in ipairs(c.live.objectives) do if not o.done then return o.text end end
+        for _, o in ipairs(c.live.objectives) do if not o.done then return Levelmate.Quests.ShowText(o) end end
     end
     local t = c.a and c.a.targets[1]
     if t then
@@ -681,7 +949,7 @@ function DescribeActionRaw(act)
     elseif act.kind == "DO" then
         local obj
         if act.liveObj and act.liveObj.text then
-            obj = act.liveObj.text
+            obj = Levelmate.Quests.ShowText(act.liveObj)
         elseif act.obj then
             local t = act.obj
             obj = string.format("%dx %s", t.need or 1, t.name or "?")
@@ -748,6 +1016,14 @@ function DescribeActionRaw(act)
             for _, pa in ipairs(act.pickups) do table.insert(p, QuestName(pa.c)) end
             more = L("\n|cffffd100Vorher noch annehmen:|r ") .. table.concat(p, ", ")
         end
+        if act.goNow then more = more .. L("\n|cff80ff80Von dir gewählt (Dungeon-Fenster).|r") end
+        if act.storyFinale then
+            local head = act.storyName and string.format(L("|cffb070ffDie Geschichte „%s“ geht weiter:|r "), act.storyName)
+                or L("|cffb070ffDie Geschichte geht weiter:|r ")
+            return head .. (act.group.name or "?"),
+                string.format(L("%d Quests: %s\nEingang %s · Gruppe über die Dungeonsuche · %s%s"),
+                    #names, table.concat(names, ", "), Coord(act.target), xp, more)
+        end
         return L("|cffff8040Dungeon:|r ") .. (act.group.name or "?"),
             string.format(L("%d Quests: %s\nEingang %s · Gruppe über die Dungeonsuche · %s%s"),
                 #names, table.concat(names, ", "), Coord(act.target), xp, more)
@@ -798,11 +1074,11 @@ local function RenderQuestLog(plan)
         elseif lq.status == Q.STATUS_READY then
             note = " – " .. L(Q.Labels.READY)
         end
-        table.insert(lines, Q.Icon(lq.status) .. " " .. title .. note)
+        table.insert(lines, Q.Icon(lq.status) .. " " .. QLink(lq.questID, title) .. note)
         if lq.status == Q.STATUS_ACTIVE then
             for j = 1, math.min(#lq.objectives, 3) do
                 local o = lq.objectives[j]
-                table.insert(lines, "     " .. (o.done and "|cff00ff00" or "|cffcccccc") .. o.text .. "|r")
+                table.insert(lines, "     " .. (o.done and "|cff00ff00" or "|cffcccccc") .. Levelmate.Quests.ShowText(o) .. "|r")
             end
         end
     end
@@ -865,7 +1141,9 @@ local function RatingText(act, plan)
         else label = L("|cffff8040lohnt kaum|r") end
         label = label .. "  |cff888888·|r  "
     end
-    local mins = (rate > 0) and (c.xp / rate) or nil
+    local mob = c.mobXP or 0
+    if mob >= 50 then est = est .. string.format(L(" + ≈%d Gegner"), math.floor(mob / 10 + 0.5) * 10) end
+    local mins = (rate > 0) and ((c.xp + mob) / rate) or nil
     if mins then
         return string.format(L("%s≈%d XP%s · ~%d min"), label, math.floor(c.xp), est, math.max(1, math.floor(mins + 0.5)))
     end
@@ -889,7 +1167,8 @@ local function SetCard(title, detail, act, plan, rgb, noSplit)
         end
         panel.kindLabel:SetText(Hex(rgb) .. label .. "|r" .. where)
         local nameColor = (act and act.c and act.c.classQuest and act.kind ~= "FLY") and Hex(KIND_RGB.CLASS) or "|cffffffff"
-        panel.stepTitle:SetText(nameColor .. name .. "|r")
+        local qid = act and act.c and act.c.q and act.c.q.id
+        panel.stepTitle:SetText(nameColor .. QLink(qid, name) .. "|r")
     else
         panel.kindLabel:SetText("")
         panel.stepTitle:SetText(name)
@@ -900,9 +1179,65 @@ local function SetCard(title, detail, act, plan, rgb, noSplit)
 end
 
 -- Fortschrittsbalken: aktuelle XP und Zeit bis zur naechsten Stufe
+-- Unverteilte Talentpunkte. WoW Forever laeuft auf einem neuen Client - je nach
+-- Version gibt es UnitCharacterPoints nicht mehr. Darum mehrere Wege, zuletzt
+-- selbst zaehlen: (Stufe - 9) minus aller vergebenen Talentraenge.
+-- Neues Talentsystem (C_ClassTalents / C_Traits), wie es moderne Clients nutzen.
+local function TraitPoints()
+    local CT, TR = C_ClassTalents, C_Traits
+    if CT and CT.HasUnspentTalentPoints then
+        local ok, has, a, b = pcall(CT.HasUnspentTalentPoints)
+        if ok then
+            local n = (tonumber(a) or 0) + (tonumber(b) or 0)
+            if n > 0 then return n end
+            if has == true then return 1 end
+        end
+    end
+    if CT and CT.GetActiveConfigID and TR and TR.GetConfigInfo and TR.GetTreeCurrencyInfo then
+        local ok, configID = pcall(CT.GetActiveConfigID)
+        if ok and configID then
+            local okI, info = pcall(TR.GetConfigInfo, configID)
+            local sum = 0
+            for _, treeID in ipairs(okI and info and info.treeIDs or {}) do
+                local okC, cur = pcall(TR.GetTreeCurrencyInfo, configID, treeID, false)
+                for _, c in ipairs(okC and cur or {}) do sum = sum + (tonumber(c.quantity) or 0) end
+            end
+            if sum > 0 then return sum end
+        end
+    end
+    return 0
+end
+
+local function UnspentTalentPoints()
+    local tp = TraitPoints()
+    if tp > 0 then return tp end
+    if UnitCharacterPoints then
+        local ok, p = pcall(UnitCharacterPoints, "player")
+        if ok and tonumber(p) and tonumber(p) > 0 then return tonumber(p) end
+    end
+    if GetUnspentTalentPoints then
+        local ok, p = pcall(GetUnspentTalentPoints)
+        if ok and tonumber(p) and tonumber(p) > 0 then return tonumber(p) end
+    end
+    local level = UnitLevel("player") or 1
+    if level < 10 or not (GetNumTalentTabs and GetNumTalents and GetTalentInfo) then return 0 end
+    local okTabs, tabs = pcall(GetNumTalentTabs)
+    if not okTabs or not tonumber(tabs) or tabs < 1 then return 0 end
+    local spent, seen = 0, false
+    for t = 1, tabs do
+        local okN, n = pcall(GetNumTalents, t)
+        for i = 1, (okN and tonumber(n) or 0) do
+            local ok, _, _, _, _, rank = pcall(GetTalentInfo, t, i)
+            if ok and tonumber(rank) then spent = spent + rank; seen = true end
+        end
+    end
+    if not seen then return 0 end
+    return math.max(0, (level - 9) - spent)
+end
+Levelmate.UnspentTalentPoints = UnspentTalentPoints
+
 local function TalentNote()
-    local ok, pts = pcall(UnitCharacterPoints or function() return 0 end, "player")
-    pts = ok and tonumber(pts) or 0
+    local pts = UnspentTalentPoints()
     if pts > 0 then
         return string.format("  |cff7fd67f+%d %s|r", pts, pts == 1 and L("Talentpunkt") or L("Talentpunkte"))
     end
@@ -969,6 +1304,7 @@ local function PreviewLines(list, from)
     for i = from + 1, #list do
         local e = list[i]
         local txt = ShortAction(e.act) or "?"
+        if e.act and e.act.c and e.act.c.q then txt = QLink(e.act.c.q.id, txt) end
         local rgb = RGBOf(e.act)
         local zone = e.zone and (" |cff888888· " .. e.zone .. "|r") or ""
         local lvl = (e.level ~= startLevel) and (L(" |cffffff00[Stufe ") .. e.level .. "]|r") or ""
@@ -1029,11 +1365,20 @@ local function AnnounceClassQuests(plan)
     local seen = CharDB()
     seen.seenClassQuests = seen.seenClassQuests or {}
     seen = seen.seenClassQuests
+    -- Nur melden, was auch wirklich in der Route steht - mit Ort und Schritt,
+    -- damit klar ist, wann Levelmate die Quest einplant.
+    local stepOf = {}
+    for i, act in ipairs(plan.actions or {}) do
+        if act.kind == "ACCEPT" and act.c and not stepOf[act.c] then stepOf[act.c] = { i = i, act = act } end
+    end
     local new = {}
     for id, c in pairs(plan.byId or {}) do
-        if c.classQuest and not c.live and not c.skipReason and not seen[id] then
+        local st = stepOf[c]
+        if c.classQuest and not c.live and not c.skipReason and not seen[id] and st then
             seen[id] = true
-            table.insert(new, c.q.name or (L("Quest ") .. id))
+            local zone = st.act.target and Levelmate.Planner.MapName(st.act.target.map)
+            local when = st.i == 1 and L("als Nächstes") or string.format(L("Schritt %d der Route"), st.i)
+            table.insert(new, (c.q.name or (L("Quest ") .. id)) .. " (" .. (zone and (zone .. ", ") or "") .. when .. ")")
         end
     end
     if #new > 0 then
@@ -1083,6 +1428,9 @@ RefreshInner = function()
         local list = Q.GetList() or {}
         local instanceID = GetInstanceInfo and select(8, GetInstanceInfo())
         local instArea = Levelmate.DB.InstanceArea and Levelmate.DB.InstanceArea(instanceID)
+        -- "Jetzt hin" aus dem Dungeon-Fenster ist erledigt, sobald du drin bist
+        local go = CharDB().dungeonGo
+        if go and instArea and Levelmate.DB.SameDungeon(go.area, instArea) then CharDB().dungeonGo = nil end
         local function Matches(area)
             if not area then return false end
             if instArea then return Levelmate.DB.SameDungeon(area, instArea) end
@@ -1118,7 +1466,7 @@ RefreshInner = function()
             if picked[lq.questID] then
                 local open = {}
                 for _, o in ipairs(lq.objectives or {}) do
-                    if not o.done then table.insert(open, o.text) end
+                    if not o.done then table.insert(open, Levelmate.Quests.ShowText(o)) end
                 end
                 local status = (lq.status == Q.STATUS_READY) and L("|cff00ff00abgabebereit|r")
                     or (#open > 0 and table.concat(open, ", ") or "")
@@ -1150,7 +1498,15 @@ RefreshInner = function()
     local factionDE = faction == "Alliance" and L("Allianz") or faction == "Horde" and "Horde" or (faction or "?")
 
     panel.modeButton:SetText(L(Levelmate.Planner.MODES[mode].label))
+    do
+        local dm = Levelmate.Planner.MODES[mode] and Levelmate.Planner.MODES[mode].dungeons
+        panel.dungeonButton:SetShown(dm and true or false)
+        if not dm then dframe:Hide() end
+        panel.learnButton:ClearAllPoints()
+        panel.learnButton:SetPoint("RIGHT", dm and panel.dungeonButton or panel.arrowButton, "LEFT", -6, 0)
+    end
     panel.skipButton:SetText(L("Überspringen"))
+    panel.laterButton:SetText(L("Später"))
     SetIconActive(panel.arrowButton, not (Levelmate_DB and Levelmate_DB.arrowHidden))
     do
         local n = (Levelmate.Trainer and Levelmate.Trainer.Learnable) and Levelmate.Trainer.Learnable() or 0
@@ -1165,6 +1521,13 @@ RefreshInner = function()
     Q.Rebuild()
     local plan = Levelmate.Planner.Plan(mode)
     if not plan.error then AnnounceClassQuests(plan) end
+    if Levelmate.UpdateDungeonFrame then pcall(Levelmate.UpdateDungeonFrame) end
+    -- Story-Modus: Reihe ist grau geworden -> einmal fragen
+    local ask = not plan.error and plan.greyChainAsk
+    if ask and StaticPopup_Show and not greyAsked[ask.root] then
+        greyAsked[ask.root] = true
+        StaticPopup_Show("LEVELMATE_GREY_STORY", ask.name or "?", nil, ask.root)
+    end
 
     UpdateBar(not plan.error and plan or nil)
     if plan.error then
@@ -1195,21 +1558,31 @@ RefreshInner = function()
             SetCard(t, d, act, plan)
             local nxt = ShortAction(plan.actions[2])
             panel.nextText:SetText((nxt and CharDB().previewHidden) and (L("Danach: ") .. nxt) or "")
-            -- Ziel in einem anderen Gebiet: Pfeil zuerst zum gelernten Uebergang
-            local here = Levelmate.Planner.PlayerPoint()
-            local wp, other = nil, nil
-            if here and act.target and act.target.map ~= here.map and Levelmate.Travel.NextWaypoint then
-                wp, other = Levelmate.Travel.NextWaypoint(here, act.target)
+            -- Pfeil: Endziel + Zwischenziel (Uebergang / bekannter Weg). Das
+            -- Zwischenziel wird laufend neu bestimmt, waehrend du dich bewegst.
+            local finalTarget, finalName = act.target, act.targetName
+            do
+                local steps = {}
+                for i = 1, 4 do
+                    local a2 = plan.actions[i]
+                    if not a2 then break end
+                    steps[#steps + 1] = { target = a2.target }
+                end
+                Levelmate.Arrow.SetSteps(steps)
             end
-            local twp = (not wp) and here and act.target and Levelmate.Travel.TrailWaypoint
-                and Levelmate.Planner.Yards(here, act.target) and Levelmate.Travel.TrailWaypoint(here, act.target)
-            if wp then
-                Levelmate.Arrow.SetTarget(wp, L("Übergang nach ") .. Levelmate.Planner.MapName(other) .. " (" .. (act.targetName or "?") .. ")")
-            elseif twp then
-                Levelmate.Arrow.SetTarget(twp, L("Dem Weg folgen (") .. (act.targetName or "?") .. ")")
-            else
-                Levelmate.Arrow.SetTarget(act.target, act.targetName)
-            end
+            Levelmate.Arrow.SetRoute(finalTarget, finalName, function(here)
+                if not here or not finalTarget then return nil end
+                if finalTarget.map ~= here.map and Levelmate.Travel.NextWaypoint then
+                    local wp, other = Levelmate.Travel.NextWaypoint(here, finalTarget)
+                    if wp then
+                        return wp, L("Übergang nach ") .. Levelmate.Planner.MapName(other) .. " (" .. (finalName or "?") .. ")", "gate"
+                    end
+                end
+                local twp = Levelmate.Travel.TrailWaypoint and Levelmate.Planner.Yards(here, finalTarget)
+                    and Levelmate.Travel.TrailWaypoint(here, finalTarget)
+                if twp then return twp, L("Dem Weg folgen (") .. (finalName or "?") .. ")", "trail" end
+                return nil
+            end)
             panel.previewText:SetText(CharDB().previewHidden and "" or RenderPreview(mode, act))
         else
             panel.previewText:SetText("")
@@ -1272,23 +1645,52 @@ end
 -- Buttons
 ---------------------------------------------------------------------------
 panel.modeButton:SetScript("OnClick", ShowModeDialog)
-panel.skipButton:SetScript("OnClick", function()
+-- "Ueberspringen" nur bei Quest-/Dungeonschritten (dauerhaft); alles andere
+-- (Lehrer, Reisen, Abbrechen-Vorschlag) ist ohnehin nur voruebergehend -> "Spaeter".
+function panel.UpdateSkip()
+    local act = currentAction
+    local questStep = act and act.kind ~= "TRAIN" and act.kind ~= "FLY" and act.kind ~= "HEARTH"
+        and act.kind ~= "SHIP" and act.kind ~= "ABANDON" and (act.c or act.group) and true or false
+    panel.skipButton:SetShown(questStep)
+end
+local function SkipCurrent(perm)
     local act = currentAction
     if act and act.kind == "TRAIN" then
         CharDB().trainSkipLevel = UnitLevel("player")
-        Print(L("Lehrer übersprungen – kommt mit der nächsten Stufe wieder (der Pfeil neben \"Überspringen\" holt ihn sofort zurück)."))
+        Print(L("Lehrer übersprungen – kommt mit der nächsten Stufe wieder (der Pfeil holt ihn sofort zurück)."))
+    elseif act and (act.kind == "FLY" or act.kind == "HEARTH" or act.kind == "SHIP") then
+        -- Reiseschritt ablehnen: 15 Minuten lang nicht mehr vorschlagen (dann wird gelaufen)
+        CharDB().travelSkip = CharDB().travelSkip or {}
+        local key = act.kind == "HEARTH" and "HEARTH"
+            or act.kind == "SHIP" and ("SHIP:" .. tostring(act.leg and act.leg.master))
+            or ("FLY:" .. tostring(act.from and act.from.name))
+        CharDB().travelSkip[key] = (time and time() or 0) + 900
+        Print(L("Reiseschritt übersprungen – für 15 Minuten wird stattdessen gelaufen."))
+    elseif act and act.kind == "ABANDON" and act.c then
+        -- "Abbrechen" ueberspringen: Vorschlag fuer diese Quest bis zur naechsten
+        -- Stufe ausblenden (sonst kaeme sofort wieder derselbe Vorschlag).
+        CharDB().abandonSnooze = CharDB().abandonSnooze or {}
+        CharDB().abandonSnooze[act.c.q.id] = UnitLevel("player")
+        Print(L("Abbrechen-Vorschlag ausgeblendet: ") .. QuestName(act.c) .. L(" – bis zur nächsten Stufe."))
     elseif act and act.c then
-        Levelmate.Smart.SetDeferred(act.c.q.id, true)
+        Levelmate.Smart.SetDeferred(act.c.q.id, true, perm)
         table.insert(CharDB().skipStack, act.c.q.id)
-        Print(L("Übersprungen: ") .. QuestName(act.c) .. L(" – kommt nach einer halben Stufe wieder (der Pfeil neben \"Überspringen\" holt sie sofort zurück)."))
+        if perm then
+            Print(L("Übersprungen: ") .. QuestName(act.c) .. L(" – kommt nicht mehr in die Route (der Pfeil holt sie zurück)."))
+        else
+            Print(L("Auf später verschoben: ") .. QuestName(act.c) .. L(" – kommt nach einem halben Level wieder (der Pfeil holt sie sofort zurück)."))
+        end
     elseif act and act.group then
         for _, dc in ipairs(act.group.list) do
-            Levelmate.Smart.SetDeferred(dc.q.id, true); table.insert(CharDB().skipStack, dc.q.id)
+            Levelmate.Smart.SetDeferred(dc.q.id, true, perm); table.insert(CharDB().skipStack, dc.q.id)
         end
-        Print(L("Dungeon übersprungen: ") .. (act.group.name or "?") .. L(" – kommt nach einer halben Stufe wieder."))
+        Print(L("Dungeon übersprungen: ") .. (act.group.name or "?")
+            .. (perm and L(" – kommt nicht mehr in die Route.") or L(" – kommt nach einem halben Level wieder.")))
     end
     Refresh()
-end)
+end
+panel.skipButton:SetScript("OnClick", function() SkipCurrent(true) end)
+panel.laterButton:SetScript("OnClick", function() SkipCurrent(false) end)
 panel.backButton:SetScript("OnClick", function()
     local stack = CharDB().skipStack
     if CharDB().trainSkipLevel then
@@ -1350,9 +1752,24 @@ SlashCmdList.LEVELMATE = function(msg)
         local n, pairsN = Levelmate.Travel.GateCount()
         Print(string.format(L("Gelernte Gebietsübergänge: %d (zwischen %d Gebietspaaren)."), n, pairsN))
         Print(string.format(L("Gelernte Wegfelder (Trampelpfade, je 50 m): %d."), Levelmate.Travel.TrailCount and Levelmate.Travel.TrailCount() or 0))
+        local T = Levelmate.Travel
+        Print(string.format(L("Übergänge: %d gelernt, %d fest eingebaut, %d aus gelaufenen Wegen · Wegfelder: %d"),
+            n or 0, T.StaticGateCount and T.StaticGateCount() or 0, T.TrailGateCount and T.TrailGateCount() or 0,
+            T.TrailCount and T.TrailCount() or 0))
         local sh = Levelmate.Travel.shared or {}
         Print(string.format(L("Von Gruppenmitgliedern übernommen (diese Sitzung): %d Übergänge, %d Wegfelder."), sh.gates or 0, sh.cells or 0))
         Print(L("Das Addon lernt Wege, wenn du zu Fuß oder beritten unterwegs bist, und tauscht sie in der Gruppe aus."))
+    elseif cmd == "karte" or cmd == "map" then
+        Levelmate_DB.mapRoute = (Levelmate_DB.mapRoute == false) and true or false
+        Print(Levelmate_DB.mapRoute and L("Route auf der Weltkarte eingeblendet.") or L("Route auf der Weltkarte ausgeblendet."))
+        if Levelmate.Arrow.RefreshMap then Levelmate.Arrow.RefreshMap() end
+    elseif cmd == "ausgelassen" or cmd == "skipped" then
+        Print(string.format(L("Dauerhaft übersprungene Quests: %d. Alle zurückholen: /lm ausgelassen leeren"),
+            Levelmate.Smart.PermanentCount and Levelmate.Smart.PermanentCount() or 0))
+    elseif cmd == "ausgelassen leeren" or cmd == "skipped clear" then
+        local n = Levelmate.Smart.ClearPermanent and Levelmate.Smart.ClearPermanent() or 0
+        Print(string.format(L("%d übersprungene Quests sind wieder in der Route."), n))
+        Refresh()
     elseif cmd == "optionen" or cmd == "options" or cmd == "einstellungen" or cmd == "settings" then
         if Levelmate.Options then Levelmate.Options.Toggle() end
     elseif cmd == "mode" or cmd == "modus" then
@@ -1361,6 +1778,24 @@ SlashCmdList.LEVELMATE = function(msg)
         if Levelmate.Export then Levelmate.Export.Show("export") end
     elseif cmd == "import" then
         if Levelmate.Export then Levelmate.Export.Show("import") end
+    elseif cmd == "talente" or cmd == "talents" then
+        local function T(f, ...) if not f then return "-" end local r = { pcall(f, ...) } return r[1] and tostring(r[2]) or "err" end
+        local CT, TR = C_ClassTalents, C_Traits
+        local has = "-"
+        if CT and CT.HasUnspentTalentPoints then
+            local r = { pcall(CT.HasUnspentTalentPoints) }
+            has = r[1] and (tostring(r[2]) .. "/" .. tostring(r[3]) .. "/" .. tostring(r[4])) or "err"
+        end
+        Print("UnitCharacterPoints=" .. T(UnitCharacterPoints, "player") .. "  GetUnspentTalentPoints=" .. T(GetUnspentTalentPoints)
+            .. "  Tabs=" .. T(GetNumTalentTabs) .. "  C_ClassTalents=" .. (CT and "ja" or "-") .. "  C_Traits=" .. (TR and "ja" or "-")
+            .. "  HasUnspent=" .. has .. "  ConfigID=" .. T(CT and CT.GetActiveConfigID)
+            .. "  Traits=" .. tostring(TraitPoints()) .. "  -> " .. tostring(UnspentTalentPoints()))
+        local names = {}
+        for k in pairs(_G) do
+            if type(k) == "string" and (k:find("^C_.*Talent") or k:find("Talent") and type(_G[k]) == "function") then names[#names + 1] = k end
+        end
+        table.sort(names)
+        Print("API: " .. table.concat(names, ", ", 1, math.min(#names, 40)))
     elseif cmd == "lehrer" or cmd == "trainer" then
         if Levelmate.Trainer and Levelmate.Trainer.Debug then Levelmate.Trainer.Debug(Print) end
     elseif cmd == "arrow" or cmd == "pfeil" then
@@ -1372,7 +1807,7 @@ SlashCmdList.LEVELMATE = function(msg)
     elseif cmd == "reset" then
         Levelmate_CharDB.skipStack = {}
         Levelmate.Smart.ClearDeferred()
-        Levelmate_DB.panelPos = nil; Levelmate_DB.arrowPos = nil; Levelmate_DB.panelHeight = nil; Levelmate_DB.scale = nil
+        Levelmate_DB.panelPos = nil; Levelmate_DB.arrowPos = nil; Levelmate_DB.panelHeight = nil; Levelmate_DB.scale = nil; Levelmate_DB.panelCollapsed = nil
         panel:SetScale(1)
         AnchorPanel(); Levelmate.Arrow.Restore()
         Print(L("Übersprungene Quests und Fensterpositionen zurückgesetzt."))
@@ -1471,7 +1906,7 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
         return
     end
     if event == "PLAYER_XP_UPDATE" then
-        -- Uebersprungenes nach einer halben Stufe zurueckholen (kein Neuplanen sonst)
+        -- Uebersprungenes nach einem halben Level zurueckholen (kein Neuplanen sonst)
         local back = Levelmate.Smart.ReleaseDeferred and Levelmate.Smart.ReleaseDeferred() or {}
         if #back > 0 then
             local names = {}
@@ -1479,7 +1914,7 @@ events:SetScript("OnEvent", function(_, event, arg1, arg2)
                 local q = Levelmate.DB.Quest(id)
                 names[#names + 1] = q and q.name or (L("Quest ") .. id)
             end
-            Print(L("Wieder eingeplant (übersprungen vor einer halben Stufe): ") .. table.concat(names, ", "))
+            Print(L("Wieder eingeplant (übersprungen vor einem halben Level): ") .. table.concat(names, ", "))
             if Levelmate.InvalidatePreview then Levelmate.InvalidatePreview() end
             Levelmate.RequestRefresh()
         end
