@@ -185,8 +185,27 @@ local function Progress()
     return lvl
 end
 Levelmate.Smart.DEFER_LEVELS = 0.5
-function Levelmate.Smart.SetDeferred(questID, state)
-    if questID then Deferred()[questID] = state and { p = Progress() } or nil end
+-- perm = true: "Ueberspringen" - die Quest kommt nicht von selbst wieder
+-- (nur ueber den Zurueck-Pfeil oder /lm ausgelassen leeren).
+function Levelmate.Smart.SetDeferred(questID, state, perm)
+    if questID then Deferred()[questID] = state and { p = Progress(), perm = perm or nil } or nil end
+end
+
+function Levelmate.Smart.IsPermanent(questID)
+    local v = questID and Deferred()[questID]
+    return type(v) == "table" and v.perm == true
+end
+
+-- Dauerhaft uebersprungene Quests: Anzahl bzw. alle wieder freigeben
+function Levelmate.Smart.PermanentCount()
+    local n = 0
+    for _, v in pairs(Deferred()) do if type(v) == "table" and v.perm then n = n + 1 end end
+    return n
+end
+function Levelmate.Smart.ClearPermanent()
+    local d, n = Deferred(), 0
+    for id, v in pairs(d) do if type(v) == "table" and v.perm then d[id] = nil; n = n + 1 end end
+    return n
 end
 
 -- Uebersprungenes wieder freigeben, wenn genug XP dazugekommen sind; gibt die IDs zurueck
@@ -196,7 +215,7 @@ function Levelmate.Smart.ReleaseDeferred()
         if v == true then d[id] = { p = prog }                    -- sehr alte Eintraege
         elseif type(v) == "number" then                             -- Eintraege vor 0.9.61: Stufe
             if v < lvl then d[id] = nil; back[#back + 1] = id end
-        elseif type(v) == "table" and v.p and prog >= v.p + Levelmate.Smart.DEFER_LEVELS then
+        elseif type(v) == "table" and v.p and not v.perm and prog >= v.p + Levelmate.Smart.DEFER_LEVELS then
             d[id] = nil; back[#back + 1] = id
         end
     end
@@ -309,7 +328,7 @@ end)
 local lastPos, onTaxi
 if C_Timer and C_Timer.NewTicker then
     C_Timer.NewTicker(15, function()
-        local taxi = UnitOnTaxi and UnitOnTaxi("player") or false
+        local taxi = Levelmate.Flag(UnitOnTaxi, false, "player") or false
         if taxi ~= onTaxi then onTaxi = taxi; Write(taxi and "F" or "f") end
         if taxi then return end
         local p = Pos()
@@ -383,7 +402,7 @@ end)
 
 if C_Timer and C_Timer.NewTicker then
     C_Timer.NewTicker(15, function()
-        local afk = UnitIsAFK and UnitIsAFK("player")
+        local afk = Levelmate.Flag(UnitIsAFK, false, "player")
         if not afk and (UnitLevel("player") or 60) < 60 then paceSec = paceSec + 15 end
         if paceSec >= 60 then
             local p = PaceStore()

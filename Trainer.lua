@@ -59,14 +59,16 @@ local function FromWhatsTraining()
     local spells = Call(WT_API.GetSpells)
     local avail = WT_API.Status and WT_API.Status.AVAILABLE
     if type(spells) ~= "table" or not avail then return nil end
-    local count, cost = 0, 0
+    local count, cost, cheapest = 0, 0, nil
     for _, s in ipairs(spells) do
         if s.status == avail and not s.quest and not s.isItem then
             count = count + 1
-            cost = cost + (tonumber(s.cost) or 0)
+            local c = tonumber(s.cost) or 0
+            cost = cost + c
+            if not cheapest or c < cheapest then cheapest = c end
         end
     end
-    return count, cost
+    return count, cost, cheapest
 end
 
 local function FromBundledData()
@@ -94,7 +96,7 @@ local function FromBundledData()
     local levels = {}
     for lvl in pairs(data.spells) do if lvl <= level then levels[#levels + 1] = lvl end end
     table.sort(levels)
-    local willKnow, count, cost = {}, 0, 0
+    local willKnow, count, cost, cheapest = {}, 0, 0, nil
     for _, lvl in ipairs(levels) do
         for _, s in ipairs(data.spells[lvl]) do
             local okRace = (not s.race and not s.races) or s.race == raceID
@@ -109,22 +111,23 @@ local function FromBundledData()
                     willKnow[s.id] = true
                     count = count + 1
                     cost = cost + (s.cost or 0)
+                    if not cheapest or (s.cost or 0) < cheapest then cheapest = s.cost or 0 end
                 end
             end
         end
     end
-    return count, cost
+    return count, cost, cheapest
 end
 
 -- Anzahl lernbarer Zauber und Gesamtpreis in Kupfer (kurz zwischengespeichert)
 function T.Learnable()
     local now = GetTime and GetTime() or 0
-    if now - cache.t < 5 then return cache.count, cache.cost, cache.source end
-    local count, cost = FromWhatsTraining()
+    if now - cache.t < 5 then return cache.count, cache.cost, cache.source, cache.cheapest end
+    local count, cost, cheapest = FromWhatsTraining()
     local source = "wt"
-    if not count then count, cost = FromBundledData(); source = "levelmate" end
-    cache = { t = now, count = count or 0, cost = cost or 0, source = source }
-    return cache.count, cache.cost, cache.source
+    if not count then count, cost, cheapest = FromBundledData(); source = "levelmate" end
+    cache = { t = now, count = count or 0, cost = cost or 0, source = source, cheapest = cheapest or 0 }
+    return cache.count, cache.cost, cache.source, cache.cheapest
 end
 
 ---------------------------------------------------------------------------
@@ -280,8 +283,12 @@ function T.Suggest()
     if #trainers == 0 then return nil end
     local here = Levelmate.Planner and Levelmate.Planner.PlayerPoint and Levelmate.Planner.PlayerPoint()
     if not here then return nil end
-    local count, cost, source = T.Learnable()
+    local count, cost, source, cheapest = T.Learnable()
     if not count or count <= 0 then return nil end
+    -- Nur wenn du dir mindestens einen Zauber leisten kannst (z. B. nicht gleich zu
+    -- Beginn im Startgebiet ohne Geld - erst die ersten Quests machen).
+    local money = GetMoney and Call(GetMoney)
+    if money and cheapest and money < cheapest then return nil end
     local best, bestD
     for _, t in ipairs(trainers) do
         local d = Levelmate.Planner.Yards(here, t.point)

@@ -438,8 +438,11 @@ T.ZoneChain = ZoneChain
 function T.ChainYards(a, b)
     if not a or not b or a.map == b.map or not a.wx or not b.wx or a.cont ~= b.cont then return nil end
     local chain = ZoneChain(a.map, b.map)
-    if not chain or #chain <= 2 then return nil end
+    if not chain then return nil end
     local straight = CDist(a.wx, a.wy, b.wx, b.wy)
+    -- Direktes Nachbargebiet ohne gelernten Uebergang: Gebietsgrenzen sind fast
+    -- immer Gebirge, der Weg fuehrt ueber einen Pass -> 60 % Aufschlag.
+    if #chain == 2 then return straight * 1.6 end
     return straight * math.min(2, 1 + 0.3 * (#chain - 2))
 end
 
@@ -483,6 +486,76 @@ local function Dist(ax, ay, bx, by)
     return math.sqrt(dx * dx + dy * dy)
 end
 
+-- Feste Gebietsuebergaenge (Paesse/Strassen), damit Levelmate die echten Wege
+-- von Anfang an kennt - auch bevor du sie selbst gelaufen bist.
+-- { Karte A, Karte B, Karte der Koordinate, x, y }  (Koordinaten wie auf der Karte)
+-- Quellen: Leveling-Guides/Wikis (Classic/Forever) und Kartenauswertung; auf
+-- etwa 50-100 Yards genau - fuer die Wegberechnung reicht das. Gelernte
+-- Uebergaenge (selbst gelaufen oder geteilt) haben Vorrang.
+local STATIC_GATES = {
+    { 1411, 1413, 1413, 62.8, 19.6 },  -- Durotar <-> Brachland: Bruecke am Wachposten (Far Watch Post)
+    { 1413, 1440, 1413, 48.2,  5.0 },  -- Brachland <-> Eschental: Mor'shan-Wall (Goldstrasse)
+    { 1413, 1442, 1413, 35.0, 27.0 },  -- Brachland <-> Steinkrallengebirge: Strasse im Westen
+    { 1413, 1445, 1445, 28.5, 47.3 },  -- Brachland <-> Duesterwald (Marschen): beim Gasthaus Zur Schattenruh
+    { 1442, 1443, 1443, 55.3,  5.0 },  -- Steinkrallengebirge (Verbranntes Tal) <-> Desolace: Pass im Norden
+    { 1443, 1444, 1443, 45.0, 98.5 },  -- Desolace <-> Feralas: Strasse im Sueden
+    { 1441, 1444, 1444, 89.8, 46.0 },  -- Tausend Nadeln <-> Feralas: Strasse bei Thalanaar
+    { 1440, 1442, 1442, 78.5, 43.0 },  -- Eschental <-> Steinkrallengebirge: Klauenpfad (Tunnel)
+    -- 1.0.3: weitere Kalimdor-Uebergaenge (Guides + auf der Forever-Karte geprueft)
+    { 1411, 1454, 1411, 45.5, 11.0 },  -- Durotar <-> Orgrimmar: Haupttor
+    { 1412, 1413, 1412, 68.0, 61.5 },  -- Mulgore <-> Brachland: Pass im Osten (Richtung Camp Taurajo)
+    { 1413, 1441, 1441, 32.2, 22.2 },  -- Brachland <-> Tausend Nadeln: Grosser Aufzug (unten)
+    { 1441, 1446, 1441, 75.0, 95.0 },  -- Tausend Nadeln <-> Tanaris: Pass suedlich der Schimmernden Ebene
+    { 1446, 1449, 1446, 27.0, 56.0 },  -- Tanaris <-> Un'Goro: Pfad im Distelstrauchtal
+    { 1449, 1451, 1449, 29.0, 22.0 },  -- Un'Goro <-> Silithus: Rampe im Nordwesten
+    { 1439, 1440, 1440, 29.0, 13.0 },  -- Dunkelkueste <-> Eschental: Strasse noerdlich von Maestras Posten
+    { 1440, 1448, 1440, 55.3, 27.0 },  -- Eschental <-> Teufelswald: Abzweig nach Norden
+    { 1440, 1447, 1440, 94.5, 47.5 },  -- Eschental <-> Azshara: Strasse ueber den Fluss
+    { 1448, 1450, 1448, 65.1,  8.2 },  -- Teufelswald <-> Mondlichtung: Holzschlundfeste (Tunnel)
+    { 1448, 1452, 1448, 65.1,  8.2 },  -- Teufelswald <-> Winterquell: Holzschlundfeste (Tunnel)
+    -- 1.0.3: Oestliche Koenigreiche (Grenzen der Gebietskarten = Classic)
+    { 1429, 1453, 1429, 32.0, 49.5 },  -- Elwynn <-> Sturmwind: Stadttor
+    { 1426, 1455, 1426, 53.5, 35.0 },  -- Dun Morogh <-> Eisenschmiede: Stadttor
+    { 1429, 1436, 1429, 21.5, 80.0 },  -- Elwynn <-> Westfall: Bruecke
+    { 1429, 1431, 1431, 92.5,  9.0 },  -- Elwynn <-> Daemmerwald: Bruecke im Nordosten
+    { 1429, 1433, 1433, 15.3, 71.5 },  -- Elwynn <-> Rotkamm: Drei Ecken
+    { 1431, 1433, 1433, 15.3, 71.5 },  -- Daemmerwald <-> Rotkamm: Drei Ecken
+    { 1431, 1436, 1431,  8.0, 62.0 },  -- Daemmerwald <-> Westfall: Bruecke im Westen
+    { 1431, 1434, 1431, 44.0, 90.0 },  -- Daemmerwald <-> Schlingendorn: Strasse nach Sueden
+    { 1430, 1431, 1431, 88.0, 40.0 },  -- Daemmerwald <-> Gebirgspass: oestlich von Dunkelhain
+    { 1430, 1435, 1435,  5.0, 51.5 },  -- Gebirgspass <-> Suempfe des Elends
+    { 1419, 1435, 1435, 33.0, 75.0 },  -- Suempfe <-> Verwuestete Lande: Strasse nach Sueden
+    { 1428, 1433, 1433, 41.5,  6.0 },  -- Rotkamm <-> Brennende Steppe: Strasse nach Norden
+    { 1418, 1427, 1418,  5.8, 60.4 },  -- Oedland <-> Sengende Schlucht: Pass im Westen
+    { 1418, 1432, 1432, 46.0, 85.0 },  -- Loch Modan <-> Oedland: Pass bei Uldaman
+    { 1426, 1432, 1432, 19.3, 62.0 },  -- Dun Morogh <-> Loch Modan: Tunnel (Suedtor)
+    { 1432, 1437, 1437, 54.0, 71.0 },  -- Loch Modan <-> Sumpfland: Dun Algaz
+    { 1417, 1437, 1437, 51.0,  9.0 },  -- Sumpfland <-> Arathi: Thandoluebergang
+    { 1417, 1424, 1424, 81.0, 55.0 },  -- Arathi <-> Hillsbrad: Thoradinswall
+    { 1424, 1425, 1424, 89.5, 42.0 },  -- Hillsbrad <-> Hinterland: Bergpfad noerdlich Durnholde
+    { 1416, 1424, 1424, 54.5,  8.0 },  -- Hillsbrad <-> Alterac: Strasse noerdlich von Tarrens Muehle
+    { 1421, 1424, 1424,  8.0, 46.0 },  -- Silberwald <-> Hillsbrad: Strasse im Westen
+    { 1420, 1421, 1421, 66.0,  6.0 },  -- Tirisfal <-> Silberwald: Strasse im Norden
+    { 1420, 1422, 1420, 85.5, 68.5 },  -- Tirisfal <-> Westliche Pestlaender: Bollwerk
+    { 1422, 1423, 1422, 69.5, 50.0 },  -- Westliche <-> Oestliche Pestlaender: Bruecke am Thondroril
+}
+local trailGates = {}   -- aus gelaufenen Wegen abgeleitete Uebergaenge (siehe unten)
+local staticCache
+local function StaticGates()
+    if staticCache then return staticCache end
+    if not (C_Map and C_Map.GetWorldPosFromMapPos and CreateVector2D) then return {} end
+    staticCache = {}
+    for _, s in ipairs(STATIC_GATES) do
+        local cont, vec = Call(C_Map.GetWorldPosFromMapPos, s[3], CreateVector2D(s[4] / 100, s[5] / 100))
+        if cont and vec then
+            local wx, wy = vec:GetXY()
+            staticCache[#staticCache + 1] = { m1 = s[1], m2 = s[2], cont = cont, wx = wx, wy = wy, static = true,
+                pts = { [tostring(s[3])] = { s[4], s[5] } } }
+        end
+    end
+    return staticCache
+end
+
 -- Alle Uebergaenge als Liste (fuer die Wegsuche)
 local function Gates()
     if not gateDirty and gateList then return gateList end
@@ -496,8 +569,24 @@ local function Gates()
             end
         end
     end
+    -- feste und aus Wegen abgeleitete Uebergaenge dazu, wenn kein gelernter in der Naehe liegt
+    local extra = {}
+    for _, sg in ipairs(StaticGates()) do extra[#extra + 1] = sg end
+    for _, tg in ipairs(trailGates) do extra[#extra + 1] = tg end
+    for _, sg in ipairs(extra) do
+        local dup = false
+        for _, g in ipairs(gateList) do
+            if g.cont == sg.cont and ((g.m1 == sg.m1 and g.m2 == sg.m2) or (g.m1 == sg.m2 and g.m2 == sg.m1))
+               and Dist(g.wx, g.wy, sg.wx, sg.wy) < 200 then dup = true; break end
+        end
+        if not dup then table.insert(gateList, sg) end
+    end
+    if not staticCache then gateDirty = true end   -- Karten-API noch nicht bereit: spaeter nochmal
     return gateList
 end
+T.StaticGateCount = function() return #STATIC_GATES end
+-- Kennung des Wegenetzes: aendert sie sich, rechnet der Planer Reisezeiten neu
+function T.RouteSig() return version .. ":" .. tostring(Gates()) .. ":" .. #trailGates end
 
 local function Touches(g, map) return g.m1 == map or g.m2 == map end
 
@@ -621,7 +710,7 @@ end
 
 local lastSample
 function T.SampleGate()
-    if UnitOnTaxi and UnitOnTaxi("player") then lastSample = nil; return end
+    if Levelmate.Flag(UnitOnTaxi, false, "player") then lastSample = nil; return end
     local p = Levelmate.Planner and Levelmate.Planner.PlayerPoint and Levelmate.Planner.PlayerPoint()
     if not p or not p.wx or not IsZoneMap(p.map) then lastSample = nil; return end
     local t = GetTime and GetTime() or 0
@@ -818,7 +907,7 @@ end
 
 local lastTrail
 function T.SampleTrail()
-    if UnitOnTaxi and UnitOnTaxi("player") then lastTrail = nil; return end
+    if Levelmate.Flag(UnitOnTaxi, false, "player") then lastTrail = nil; return end
     if IsInInstance and IsInInstance() then lastTrail = nil; return end
     local p = Levelmate.Planner and Levelmate.Planner.PlayerPoint and Levelmate.Planner.PlayerPoint()
     if not p or not p.wx or not p.cont then lastTrail = nil; return end
@@ -837,6 +926,99 @@ function T.TrailCount()
     local n = 0
     for _, t in pairs((Levelmate_DB and Levelmate_DB.trails) or {}) do n = n + (t.n or 0) end
     return n
+end
+
+---------------------------------------------------------------------------
+-- Uebergaenge aus gelaufenen Wegen ableiten
+-- Jeder gelaufene Weg (eigene Trampelpfade und das mitgelieferte Startwissen)
+-- wird auf die Gebietskarten gelegt: Wo zwei benachbarte Wegfelder in
+-- verschiedenen Gebieten liegen, ist ein begehbarer Uebergang. Das Spiel
+-- sagt dafuer selbst, zu welchem Gebiet eine Stelle gehoert (echte
+-- Gebietsgrenzen, nicht nur Rechtecke). Laeuft in kleinen Portionen im
+-- Hintergrund, damit es nicht ruckelt.
+---------------------------------------------------------------------------
+local CONT_MAP = { [0] = 1415, [1] = 1414 }
+local zoneAt = {}           -- ["cont:cx,cy"] = Karten-ID oder false
+local deriveVer = -1
+local deriving = false
+
+local function ZoneAtCell(cont, cx, cy)
+    local key = cont .. ":" .. cx .. "," .. cy
+    local z = zoneAt[key]
+    if z ~= nil then return z or nil end
+    z = false
+    local cm = CONT_MAP[cont]
+    if cm and C_Map and C_Map.GetMapPosFromWorldPos and C_Map.GetMapInfoAtPosition and CreateVector2D then
+        local ok, _, pos = pcall(C_Map.GetMapPosFromWorldPos, cont, CreateVector2D(cx * CELL + CELL / 2, cy * CELL + CELL / 2), cm)
+        if ok and pos then
+            local px, py = pos:GetXY()
+            local ok2, info = pcall(C_Map.GetMapInfoAtPosition, cm, px, py)
+            if ok2 and info and info.mapID and info.mapID ~= cm and IsZoneMap(info.mapID) then z = info.mapID end
+        end
+    end
+    zoneAt[key] = z
+    return z or nil
+end
+
+local NEIGHBORS = { { 1, 0 }, { 0, 1 }, { 1, 1 }, { 1, -1 } }
+function T.DeriveTrailGates(onDone)
+    if deriving or deriveVer == trailVersion then return end
+    if not (C_Map and C_Map.GetMapInfoAtPosition and C_Timer and C_Timer.After) then return end
+    deriving = true
+    local startVer = trailVersion
+    local cells = {}
+    for cont, t in pairs((Levelmate_DB and Levelmate_DB.trails) or {}) do
+        if CONT_MAP[cont] then
+            for k in pairs(t.c or {}) do
+                local cx, cy = k:match("^(-?%d+),(-?%d+)$")
+                if cx then cells[#cells + 1] = { cont, tonumber(cx), tonumber(cy), t.c } end
+            end
+        end
+    end
+    local found, i = {}, 1
+    local function Add(cont, m1, m2, wx, wy)
+        for _, g in ipairs(found) do
+            if g.cont == cont and ((g.m1 == m1 and g.m2 == m2) or (g.m1 == m2 and g.m2 == m1))
+               and Dist(g.wx, g.wy, wx, wy) < 150 then return end
+        end
+        found[#found + 1] = { m1 = m1, m2 = m2, cont = cont, wx = wx, wy = wy, derived = true }
+    end
+    local function Step()
+        local stop = math.min(#cells, i + 299)
+        for j = i, stop do
+            local cont, cx, cy, map = cells[j][1], cells[j][2], cells[j][3], cells[j][4]
+            local za
+            for _, d in ipairs(NEIGHBORS) do
+                local nx, ny = cx + d[1], cy + d[2]
+                if map[nx .. "," .. ny] then
+                    za = za or ZoneAtCell(cont, cx, cy)
+                    local zb = za and ZoneAtCell(cont, nx, ny)
+                    if za and zb and za ~= zb then
+                        Add(cont, za, zb, (cx + nx + 1) * CELL / 2, (cy + ny + 1) * CELL / 2)
+                    end
+                end
+            end
+        end
+        i = stop + 1
+        if i <= #cells then
+            C_Timer.After(0.05, Step)
+        else
+            trailGates = found
+            gateDirty = true
+            deriveVer, deriving = startVer, false
+            if onDone then pcall(onDone, #found) end
+        end
+    end
+    Step()
+end
+function T.TrailGateCount() return #trailGates end
+
+-- Nach dem Einloggen und danach alle 10 Minuten (falls neue Wege dazukamen)
+if C_Timer and C_Timer.After and C_Timer.NewTicker then
+    C_Timer.After(15, function()
+        pcall(T.DeriveTrailGates, function() if Levelmate.RequestRefresh then Levelmate.RequestRefresh() end end)
+    end)
+    C_Timer.NewTicker(600, function() pcall(T.DeriveTrailGates) end)
 end
 
 -- Kleiner Binaer-Heap fuer die Wegsuche
@@ -933,6 +1115,20 @@ function T.TrailYards(a, b)
     if not field or a ~= T._trailOrigin or not b or not b.wx or b.cont ~= field.cont then return nil end
     local straight = Dist(a.wx, a.wy, b.wx, b.wy)
     if straight < 300 then return nil end
+    -- Kuerzester bekannter Weg zum Ziel haengt nur vom Wegfeld und vom Ziel ab: am Ziel merken
+    local best
+    if b._tyF == field then best = b._tyV or nil
+    else
+        best = T.TrailYardsRaw(b)
+        b._tyF, b._tyV = field, best or false
+    end
+    if not best then return nil end
+    -- Nur echte Umwege uebernehmen; viel laengere Wege heissen meist nur,
+    -- dass der direkte Weg noch nicht begangen wurde.
+    if best < straight * 1.15 or best > straight * 3 then return nil end
+    return best
+end
+function T.TrailYardsRaw(b)
     local bx, by = math.floor(b.wx / CELL), math.floor(b.wy / CELL)
     local r = math.ceil(START_R / CELL)
     local best
@@ -943,10 +1139,6 @@ function T.TrailYards(a, b)
             if tail <= START_R and (not best or d + tail < best) then best = d + tail end
         end
     end end
-    if not best then return nil end
-    -- Nur echte Umwege uebernehmen; viel laengere Wege heissen meist nur,
-    -- dass der direkte Weg noch nicht begangen wurde.
-    if best < straight * 1.15 or best > straight * 3 then return nil end
     return best
 end
 
@@ -954,9 +1146,21 @@ end
 -- etwas herum (Serpentinen, Rampe auf ein Plateau), zeigt der Pfeil auf einen
 -- Punkt ca. 100 Yards voraus auf diesem Weg statt per Luftlinie zum Ziel.
 -- Liefert {map, x, y, cont, wx, wy} oder nil (dann Luftlinie).
+local lastFieldRebuild = 0
 function T.TrailWaypoint(a, b)
-    if not field or not a or not b or not a.wx or not b.wx then return nil end
-    if a.cont ~= field.cont or b.cont ~= field.cont then return nil end
+    if not a or not b or not a.wx or not b.wx then return nil end
+    -- Das Wegfeld wurde vom Planungsstartpunkt aus berechnet. Bist du inzwischen
+    -- woanders (z. B. anderen Weg genommen), wuerde der Pfeil zurueck zum alten
+    -- Startpunkt fuehren -> Feld von deiner Position neu aufbauen (hoechstens alle 5 s).
+    local px0, py0 = math.floor(a.wx / CELL), math.floor(a.wy / CELL)
+    if not field or field.cont ~= a.cont or math.abs(field.ox - px0) > 6 or math.abs(field.oy - py0) > 6 then
+        local now = GetTime and GetTime() or 0
+        if now - lastFieldRebuild < 5 then return nil end
+        lastFieldRebuild = now
+        field = BuildField(a)
+        T._trailOrigin = a
+    end
+    if not field or a.cont ~= field.cont or b.cont ~= field.cont then return nil end
     local straight = Dist(a.wx, a.wy, b.wx, b.wy)
     if straight < 150 then return nil end
     local r = math.ceil(START_R / CELL)
@@ -987,9 +1191,12 @@ function T.TrailWaypoint(a, b)
     -- Vom Ziel aus "bergab" zum Startpunkt, bis ca. 100 Yards vor dir
     local cx, cy = ex, ey
     local wx, wy   -- letzter Wegpunkt, der noch mind. 60 Yards vor dir liegt
+    local path, step = { { wx = b.wx, wy = b.wy } }, 0   -- fuer die Weltkarte (vom Ziel zu dir)
     for _ = 1, 3000 do
         local cwx, cwy = (cx + 0.5) * CELL, (cy + 0.5) * CELL
         if Dist(a.wx, a.wy, cwx, cwy) >= 60 then wx, wy = cwx, cwy end
+        step = step + 1
+        if step % 3 == 0 then path[#path + 1] = { wx = cwx, wy = cwy } end
         local d = field.dist[CellKey(cx, cy)]
         if not d or d <= dp + 100 then break end
         local nx, ny, nd
@@ -1003,6 +1210,11 @@ function T.TrailWaypoint(a, b)
         cx, cy = nx, ny
     end
     if not wx then return nil end
+    -- Schutz: Ein Zwischenziel ca. 100 Yards voraus kann dich hoechstens wenig vom
+    -- Ziel wegfuehren (Serpentine). Weiter weg = Feld passt nicht -> Luftlinie.
+    if Dist(wx, wy, b.wx, b.wy) > straight + 150 then return nil end
+    path[#path + 1] = { wx = a.wx, wy = a.wy }
+    T.lastTrailPath = { cont = a.cont, pts = path }
     local p = { map = a.map, cont = a.cont, wx = wx, wy = wy, x = a.x, y = a.y }
     if C_Map and C_Map.GetMapPosFromWorldPos and CreateVector2D then
         local ok, _, v = pcall(C_Map.GetMapPosFromWorldPos, a.cont, CreateVector2D(wx, wy), a.map)
@@ -1135,20 +1347,75 @@ end
 -- Gleiches Format wie der Austausch in der Gruppe: G|... (Uebergang),
 -- T|Kontinent|x,y;x,y;... (Wegfelder).
 ---------------------------------------------------------------------------
+local DIRS = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 }, { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } }
+local DIRCH = "abcdefgh"
+-- "P"-Zeile (kompakter Export) in normale "T"-Zeilen umwandeln
+local function ExpandP(line)
+    local cont, body = line:match("^P|(%d+)|(.*)$")
+    if not cont then return {} end
+    local out, cur = {}, {}
+    for seg in body:gmatch("[^;]+") do
+        local x, y, dirs = seg:match("^(-?%d+),(-?%d+):([a-h]*)$")
+        if x then
+            x, y = tonumber(x), tonumber(y)
+            cur[#cur + 1] = x .. "," .. y
+            for i = 1, #dirs do
+                local v = DIRS[DIRCH:find(dirs:sub(i, i), 1, true)]
+                x, y = x + v[1], y + v[2]
+                cur[#cur + 1] = x .. "," .. y
+                if #cur >= 40 then out[#out + 1] = "T|" .. cont .. "|" .. table.concat(cur, ";"); cur = {} end
+            end
+            if #cur >= 40 then out[#out + 1] = "T|" .. cont .. "|" .. table.concat(cur, ";"); cur = {} end
+        end
+    end
+    if #cur > 0 then out[#out + 1] = "T|" .. cont .. "|" .. table.concat(cur, ";") end
+    return out
+end
+
 function T.ExportText()
     local lines, gates, cells = { "Levelmate-Export 1" }, 0, 0
     for _, e in ipairs(T.AllGates()) do
         local m = GateMsg(e.m1, e.m2, e.g)
         if m then lines[#lines + 1] = m; gates = gates + 1 end
     end
+    -- Wegfelder kompakt: zusammenhaengende Felder als Kette von Richtungen
+    -- ("P|kont|x,y:abc...;x,y:..."), ca. 1 Zeichen je Feld statt ~10.
     for cont, t in pairs((Levelmate_DB and Levelmate_DB.trails) or {}) do
-        local parts = {}
+        local left, keys = {}, {}
         for k in pairs(t.c or {}) do
-            parts[#parts + 1] = k
-            cells = cells + 1
-            if #parts >= 40 then lines[#lines + 1] = "T|" .. cont .. "|" .. table.concat(parts, ";"); parts = {} end
+            local x, y = k:match("^(-?%d+),(-?%d+)$")
+            if x then left[k] = true; keys[#keys + 1] = k; cells = cells + 1 end
         end
-        if #parts > 0 then lines[#lines + 1] = "T|" .. cont .. "|" .. table.concat(parts, ";") end
+        table.sort(keys)
+        local segs, len = {}, 0
+        local function Flush()
+            if #segs > 0 then lines[#lines + 1] = "P|" .. cont .. "|" .. table.concat(segs, ";") end
+            segs, len = {}, 0
+        end
+        for _, k in ipairs(keys) do
+            if left[k] then
+                left[k] = nil
+                local x, y = k:match("^(-?%d+),(-?%d+)$")
+                x, y = tonumber(x), tonumber(y)
+                local dirs = {}
+                while true do
+                    local moved = false
+                    for d, v in ipairs(DIRS) do
+                        local nk = (x + v[1]) .. "," .. (y + v[2])
+                        if left[nk] then
+                            left[nk] = nil; x, y = x + v[1], y + v[2]
+                            dirs[#dirs + 1] = DIRCH:sub(d, d); moved = true
+                            break
+                        end
+                    end
+                    if not moved then break end
+                end
+                local seg = k .. ":" .. table.concat(dirs)
+                segs[#segs + 1] = seg; len = len + #seg + 1
+                if len > 880 then Flush() end
+            end
+        end
+        Flush()
     end
     return table.concat(lines, "\n"), gates, cells
 end
@@ -1158,12 +1425,216 @@ function T.ImportText(text)
     local g0, c0 = T.shared.gates, T.shared.cells
     for line in tostring(text or ""):gmatch("[^\r\n]+") do
         line = (line:gsub("^%s+", ""):gsub("%s+$", ""))
-        if line:match("^[GT]|") then pcall(OnMessage, line) end
+        if line:match("^[GT]|") then pcall(OnMessage, line)
+        elseif line:match("^P|") then
+            for _, tl in ipairs(ExpandP(line)) do pcall(OnMessage, tl) end
+        end
     end
     local g, c = T.shared.gates - g0, T.shared.cells - c0
     T.shared.gates, T.shared.cells = g0, c0
     if Levelmate.Planner and Levelmate.Planner.InvalidateCostCache then pcall(Levelmate.Planner.InvalidateCostCache) end
     return g, c
+end
+
+
+---------------------------------------------------------------------------
+-- Aufgaenge: aufgezeichnete Wege mit Hoehenunterschied (Rampe, Aufzug,
+-- Bruecken). Die Karte ist flach - Wegfelder koennen "oben" und "unten" nicht
+-- trennen. Ein Aufgang ist eine Punktfolge in Laufreihenfolge vom Fuss bis
+-- zum Ziel oben. Liegt ein Ziel nahe am Ende eines Aufgangs, fuehrt der Pfeil
+-- erst zum Anfang und dann Punkt fuer Punkt hinauf.
+-- Aufzeichnen: /lm aufgang (unten starten, oben am Ziel nochmal /lm aufgang)
+---------------------------------------------------------------------------
+local ACCESS_END_R = 150     -- Ziel so nah am oberen Ende -> Aufgang benutzen
+local ACCESS_REACH = 25      -- Yards: Punkt gilt als erreicht
+local ACCESS_AHEAD = 35      -- so weit voraus zeigt der Pfeil
+local ACCESS_STEP = 8        -- Aufzeichnung: alle 8 Yards ein Punkt
+local ACCESS_LOST = 250      -- so weit weg vom ganzen Aufgang -> von vorn
+local accessProgress = setmetatable({}, { __mode = "k" })
+
+local function AccessList(cont, create)
+    Levelmate_DB = Levelmate_DB or {}
+    if create then
+        Levelmate_DB.access = Levelmate_DB.access or {}
+        Levelmate_DB.access[cont] = Levelmate_DB.access[cont] or {}
+    end
+    return Levelmate_DB.access and Levelmate_DB.access[cont]
+end
+T.AccessList = AccessList
+
+local function WorldPoint(a, wx, wy)
+    local p = { map = a.map, cont = a.cont, wx = wx, wy = wy, x = a.x, y = a.y }
+    if C_Map and C_Map.GetMapPosFromWorldPos and CreateVector2D then
+        local ok, _, v = pcall(C_Map.GetMapPosFromWorldPos, a.cont, CreateVector2D(wx, wy), a.map)
+        if ok and v then local x, y = v:GetXY(); p.x, p.y = x * 100, y * 100 end
+    end
+    return p
+end
+
+-- Zwischenziel auf einem Aufgang; nil = keiner passt (dann wie bisher)
+function T.AccessWaypoint(a, b)
+    if not (a and b and a.wx and b.wx) or a.cont ~= b.cont then return nil end
+    local list = AccessList(a.cont)
+    if not list or #list == 0 then return nil end
+    if Dist(a.wx, a.wy, b.wx, b.wy) < 40 then return nil end
+    local best, bestD
+    for _, acc in ipairs(list) do
+        local pts = acc.pts
+        local e = pts and pts[#pts]
+        if e then
+            local d = Dist(e[1], e[2], b.wx, b.wy)
+            -- Ziel beim Aufzeichnen (Questdaten liegen manchmal etwas daneben)
+            if acc.aim then d = math.min(d, Dist(acc.aim[1], acc.aim[2], b.wx, b.wy)) end
+            if d <= ACCESS_END_R and (not bestD or d < bestD) then best, bestD = acc, d end
+        end
+    end
+    if not best then return nil end
+    local pts = best.pts
+    -- Fortschritt: nur vorwaerts (sonst verwechselt die flache Karte oben/unten)
+    local prog = accessProgress[best] or 0
+    local nearAny = math.huge
+    for i = 1, #pts do
+        local d = Dist(a.wx, a.wy, pts[i][1], pts[i][2])
+        if d < nearAny then nearAny = d end
+        if i > prog and i <= prog + 15 and d <= ACCESS_REACH then prog = i end
+    end
+    if nearAny > ACCESS_LOST then prog = 0 end
+    -- Du stehst schon am oberen Ende (z. B. mit dem Flugmeister oben angekommen):
+    -- dann nicht erst wieder nach unten schicken.
+    local e = pts[#pts]
+    if prog == 0 and Dist(a.wx, a.wy, e[1], e[2]) <= 60 then prog = #pts end
+    accessProgress[best] = prog
+    if prog >= #pts - 1 then return nil end   -- oben angekommen
+    -- Karte: restlicher Weg vom Ziel bis zu dir
+    local path = { { wx = b.wx, wy = b.wy } }
+    for i = #pts, math.max(1, prog), -1 do path[#path + 1] = { wx = pts[i][1], wy = pts[i][2] } end
+    path[#path + 1] = { wx = a.wx, wy = a.wy }
+    T.lastTrailPath = { cont = a.cont, pts = path }
+    if prog == 0 then return WorldPoint(a, pts[1][1], pts[1][2]), "start" end
+    local j, run = prog, 0
+    while j < #pts and run < ACCESS_AHEAD do
+        run = run + Dist(pts[j][1], pts[j][2], pts[j + 1][1], pts[j + 1][2])
+        j = j + 1
+    end
+    return WorldPoint(a, pts[j][1], pts[j][2]), "climb"
+end
+
+-- Aufzeichnung
+local rec
+local function RecSample()
+    if not rec then return end
+    local p = Levelmate.Planner and Levelmate.Planner.PlayerPoint and Levelmate.Planner.PlayerPoint()
+    if not p or not p.wx or p.cont ~= rec.cont then return end
+    local last = rec.pts[#rec.pts]
+    if Dist(p.wx, p.wy, last[1], last[2]) >= ACCESS_STEP then
+        rec.pts[#rec.pts + 1] = { math.floor(p.wx * 10 + 0.5) / 10, math.floor(p.wy * 10 + 0.5) / 10 }
+        if #rec.pts >= 500 and T.AccessRecord then T.AccessRecord() end
+    end
+end
+-- Start/Stopp. Liefert: "start" | "saved", Punkte | "short" | "nopos"
+function T.AccessRecord()
+    if rec then
+        if rec.ticker then rec.ticker:Cancel() end
+        RecSample()
+        local r = rec
+        rec = nil
+        if #r.pts < 3 then return "short" end
+        local list = AccessList(r.cont, true)
+        local acc = { pts = r.pts, own = true }
+        -- Ziel des Pfeils merken, wenn es in der Naehe des oberen Endes liegt
+        local route = Levelmate.Arrow and Levelmate.Arrow.Route and Levelmate.Arrow.Route()
+        local f = route and route.final
+        local e = r.pts[#r.pts]
+        if f and f.wx and f.cont == r.cont and Dist(f.wx, f.wy, e[1], e[2]) <= 400 then
+            acc.aim = { math.floor(f.wx * 10 + 0.5) / 10, math.floor(f.wy * 10 + 0.5) / 10 }
+        end
+        list[#list + 1] = acc
+        return "saved", #r.pts
+    end
+    local p = Levelmate.Planner and Levelmate.Planner.PlayerPoint and Levelmate.Planner.PlayerPoint()
+    if not p or not p.wx then return "nopos" end
+    rec = { cont = p.cont, pts = { { math.floor(p.wx * 10 + 0.5) / 10, math.floor(p.wy * 10 + 0.5) / 10 } } }
+    if C_Timer and C_Timer.NewTicker then rec.ticker = C_Timer.NewTicker(0.3, RecSample) end
+    return "start"
+end
+function T.AccessRecording() return rec ~= nil end
+
+-- Aufgang in deiner Naehe (Anfang oder Ende < 60 Yards) loeschen
+function T.AccessDeleteNear()
+    local p = Levelmate.Planner and Levelmate.Planner.PlayerPoint and Levelmate.Planner.PlayerPoint()
+    local list = p and p.wx and AccessList(p.cont)
+    if not list then return 0 end
+    local n = 0
+    for i = #list, 1, -1 do
+        local pts = list[i].pts
+        local s, e = pts[1], pts[#pts]
+        if Dist(p.wx, p.wy, s[1], s[2]) < 60 or Dist(p.wx, p.wy, e[1], e[2]) < 60 then
+            table.remove(list, i); n = n + 1
+        end
+    end
+    return n
+end
+
+-- Export/Import: "A|kont|x,y;x,y;..." (ganze Yards)
+local function AccessLines()
+    local lines = {}
+    for cont, list in pairs((Levelmate_DB and Levelmate_DB.access) or {}) do
+        for _, acc in ipairs(list) do
+            -- eine Zeile muss in eine Discord-Nachricht passen -> notfalls ausduennen
+            local k = 1
+            while true do
+                local t = {}
+                for i, pt in ipairs(acc.pts) do
+                    if (i - 1) % k == 0 or i == #acc.pts then
+                        t[#t + 1] = math.floor(pt[1] + 0.5) .. "," .. math.floor(pt[2] + 0.5)
+                    end
+                end
+                local line = "A|" .. cont .. "|" .. table.concat(t, ";")
+                if acc.aim then line = line .. "|" .. math.floor(acc.aim[1] + 0.5) .. "," .. math.floor(acc.aim[2] + 0.5) end
+                if #line <= 1700 or k >= 8 then lines[#lines + 1] = line; break end
+                k = k + 1
+            end
+        end
+    end
+    return lines
+end
+local function ImportAccess(line)
+    local cont, body = line:match("^A|(%d+)|(.+)$")
+    cont = tonumber(cont)
+    if not cont then return false end
+    local aim
+    local b2, ax, ay = body:match("^(.-)|(-?[%d.]+),(-?[%d.]+)$")
+    if b2 then body, aim = b2, { tonumber(ax), tonumber(ay) } end
+    local pts = {}
+    for x, y in body:gmatch("(-?[%d.]+),(-?[%d.]+)") do pts[#pts + 1] = { tonumber(x), tonumber(y) } end
+    if #pts < 3 then return false end
+    local list = AccessList(cont, true)
+    for _, acc in ipairs(list) do   -- schon bekannt (gleicher Anfang und gleiches Ende)?
+        local s, e = acc.pts[1], acc.pts[#acc.pts]
+        if Dist(s[1], s[2], pts[1][1], pts[1][2]) < 15 and Dist(e[1], e[2], pts[#pts][1], pts[#pts][2]) < 15 then
+            if aim and not acc.aim then acc.aim = aim end   -- Ziel nachtragen
+            return false
+        end
+    end
+    list[#list + 1] = { pts = pts, aim = aim, shared = true }
+    return true
+end
+T.accessImported = 0
+local baseExport, baseImport = T.ExportText, T.ImportText
+function T.ExportText()
+    local text, g, c = baseExport()
+    local extra = AccessLines()
+    if #extra > 0 then text = text .. "\n" .. table.concat(extra, "\n") end
+    return text, g, c, #extra
+end
+function T.ImportText(text)
+    local n = 0
+    for line in tostring(text or ""):gmatch("[^\r\n]+") do
+        line = (line:gsub("^%s+", ""):gsub("%s+$", ""))
+        if line:match("^A|") and ImportAccess(line) then n = n + 1 end
+    end
+    T.accessImported = n
+    return baseImport(text)
 end
 
 -- Startwissen (Seed.lua) einmal je Version uebernehmen

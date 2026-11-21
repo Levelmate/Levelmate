@@ -21,8 +21,9 @@ The window
   scroll (new spells at your trainer), arrow on/off, mode, settings.
 - Below: recommended zones for your level.
 - The card shows the current step with a rating, XP and time.
-  "Skip" postpones the step (it returns after half a level), the arrow next
-  to it brings it back right away.
+  "Later" postpones the step (it returns after half a level), "Skip" removes
+  a quest from the route for good. The arrow brings the last step back right
+  away, /lm skipped clear brings all back.
 - "Next steps" and "Quest log" can be folded open/closed with a click.
 - Class trainer: becomes a step when you can learn new spells and the
   trainer is nearby or you are in their capital city.
@@ -45,11 +46,18 @@ Commands
 /lm scale 0.8  window size (0.5 to 1.5)
 /lm reset      reset skipped quests and window position
 /lm why <quest>  explains why a quest is (not) suggested
+/lm map        route on the world map on/off
+/lm paths      known zone crossings and paths
+/lm skipped    quests skipped for good (/lm skipped clear: bring all back)
+Right-click the arrow: straight to the target / follow the path again
 /lm trainer    shows what Levelmate knows about trainers and spells
 /lm export     learned paths as text to copy (e.g. to send to the developer)
 /lm import     add paths from such a text
 /lm smart      measured XP per minute
 /lm perf       addon processing time
+/lm first <quest>  put a quest from your log first (/lm first: normal order)
+/lm ascent     record a way up (ramp/lift/bridge): start at the bottom, again at the top
+/lm bug        bug report to copy (for Discord)
 /lm diag       diagnostics
 
 Notes

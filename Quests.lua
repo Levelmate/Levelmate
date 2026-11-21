@@ -82,8 +82,10 @@ function Q.Rebuild()
     local list, byID, byTitle = {}, {}, {}
     if CQL and CQL.GetNumQuestLogEntries and CQL.GetInfo then
         local n = Call(CQL.GetNumQuestLogEntries) or 0
+        local header
         for i = 1, n do
             local info = Call(CQL.GetInfo, i)
+            if type(info) == "table" and info.isHeader then header = info.title end
             if type(info) == "table" and not info.isHeader and not info.isHidden
                and info.title and info.questID and info.questID > 0 then
                 local objectives = ReadObjectives(info.questID)
@@ -96,6 +98,24 @@ function Q.Rebuild()
                     status = ReadStatus(info.questID, objectives),
                 }
                 q.complete = (q.status == Q.STATUS_READY)
+                q.header = header
+                -- Zeitquest? Restzeit merken (und fuer kuenftige Annahmen lernen)
+                local total, elapsed = nil, nil
+                if CQL.GetTimeAllowed then total, elapsed = Call(CQL.GetTimeAllowed, info.questID) end
+                if type(total) == "number" and total > 0 then
+                    q.timeTotal = total
+                    q.timeLeft = math.max(0, total - (tonumber(elapsed) or 0))
+                    q.timeAt = GetTime and GetTime() or 0
+                    Levelmate_DB = Levelmate_DB or {}
+                    Levelmate_DB.timedQuests = Levelmate_DB.timedQuests or {}
+                    Levelmate_DB.timedQuests[info.questID] = total
+                end
+                -- Questart laut Spiel (wie im Questlog "(Dungeon)" / "(Elite)")
+                local tag = CQL.GetQuestTagInfo and Call(CQL.GetQuestTagInfo, info.questID)
+                if type(tag) == "table" then
+                    q.dungeon = tag.tagID == 81 or tag.tagID == 85 or tag.tagID == 62 or tag.tagID == 88 or tag.tagID == 89
+                    q.elite = tag.isElite == true or tag.tagID == 1
+                end
                 table.insert(list, q)
                 byID[q.questID] = q
                 byTitle[Q.NormalizeTitle(q.title)] = q
@@ -104,6 +124,41 @@ function Q.Rebuild()
     end
     snapshot = { list = list, byID = byID, byTitle = byTitle, time = GetTime and GetTime() or 0 }
     return list
+end
+
+-- Anzeigetext eines Questziels. Rufziele kommen vom Spiel als
+-- "Gelkisklan: Feindselig / Freundlich" (jetzt / Ziel) - das liest sich wie
+-- "erledigt". Darum: "Gelkisklan: Feindselig (Ziel: Freundlich)".
+function Q.ShowText(o)
+    local t = o and o.text or ""
+    if o and o.type == "reputation" and not o.done then
+        local name, now, goal = t:match("^(.-):%s*(.-)%s*/%s*(.-)$")
+        if name and now ~= "" and goal ~= "" then
+            return name .. ": " .. now .. " (" .. Levelmate.L("Ziel") .. ": " .. goal .. ")"
+        end
+    end
+    return t
+end
+
+-- Restzeit einer Zeitquest in Sekunden (laufend), sonst nil
+function Q.TimeLeft(questID)
+    local q = questID and snapshot.byID[questID]
+    if not q or not q.timeLeft then return nil end
+    local now = GetTime and GetTime() or 0
+    return math.max(0, q.timeLeft - (now - (q.timeAt or now)))
+end
+function Q.FormatTime(sec)
+    sec = math.max(0, math.floor(sec or 0))
+    if sec >= 3600 then return string.format("%d:%02d:%02d", math.floor(sec / 3600), math.floor(sec / 60) % 60, sec % 60) end
+    return string.format("%d:%02d", math.floor(sec / 60), sec % 60)
+end
+Q.ICON_TIMER = "|TInterface\\Icons\\INV_Misc_PocketWatch_01:12:12|t"
+-- Countdown-Text mit Farbe (gelb, unter 5 min orange, unter 2 min rot)
+function Q.TimerText(questID)
+    local left = Q.TimeLeft(questID)
+    if not left then return nil end
+    local col = left < 120 and "|cffff4040" or (left < 300 and "|cffff9933" or "|cffffd100")
+    return Q.ICON_TIMER .. " " .. col .. Q.FormatTime(left) .. "|r"
 end
 
 -- Liefert die zuletzt eingelesene Liste (gleiche Tabelle fuer alle Anzeigen).

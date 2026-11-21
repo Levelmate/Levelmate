@@ -1,3 +1,273 @@
+Levelmate 1.0.6
+===============
+
+Neu
+- Aufgänge: Wege mit Höhenunterschied (Rampen, Aufzüge, Brücken - z. B. Tafelberge in
+  Tausend Nadeln) kann Levelmate auf der flachen Karte nicht von "unten" unterscheiden. Mit
+  /lm aufgang (unten starten, oben am Ziel nochmal /lm aufgang) zeichnest du so einen Weg
+  einmal auf. Danach führt der Pfeil bei Zielen dort oben erst zum Aufgang und dann Punkt
+  für Punkt hinauf (auch als Linie auf der Weltkarte). Aufgänge kommen mit in /lm export und
+  /lm import und können so geteilt werden. /lm aufgang löschen entfernt einen Aufgang in
+  deiner Nähe. Es reicht, die Aufnahme am höchsten Punkt zu beenden - Levelmate merkt sich
+  dazu das aktuelle Ziel. Erster Aufgang ab Werk: Darkcloud Pinnacle (Arikara, Tausend Nadeln).
+- Dungeon-Vorbereitung (Vorschlag aus dem Discord): Das Dungeon-Fenster zeigt je Dungeon
+  "x/y Quests" wie ein Dungeon-Journal, dazu wo die fehlenden Vorquest-Ketten anfangen
+  ("Vorquest: Go, Go, Guano! (Undercity) für Herzen des Eifers"). "Quests abholen" plant
+  jetzt auch diese Vorquest-Ketten mit ein (auch in anderen Gebieten und auch, wenn sie sich
+  allein nicht lohnen). Sind alle Quests beisammen, meldet Levelmate "Bereit für ...".
+- Zeitquests: Läuft bei einer Quest ein Timer, zeigt Levelmate einen Countdown (Karte und
+  Questlog-Bereich, unter 5 min orange, unter 2 min rot) und erledigt ihre Schritte zuerst.
+  Reicht die Zeit für Weg + Aufwand nicht mehr, kommt der Hinweis "abbrechen und neu
+  annehmen?". Bekannte Zeitquests werden erst angenommen, wenn du sie direkt danach in der
+  Zeit schaffst und keine andere Zeitquest läuft (Levelmate lernt sie beim ersten Mal).
+- Das Dungeon-Fenster lässt sich unabhängig vom Levelmate-Fenster verschieben (am Titel
+  ziehen) und wie das Hauptfenster an der Ecke unten rechts in Breite und Höhe ändern; ist es
+  kleiner als der Inhalt, wird gescrollt (Mausrad oder Leiste). Position und Größe werden
+  gemerkt. Nah an den rechten Rand des Levelmate-Fensters gezogen, dockt es wieder an.
+  /lm reset setzt beides zurück.
+- Dungeon-Namen erscheinen in der Sprache deines Spiels (z. B. "Die Todesminen" statt
+  "The Deadmines") - im Dungeon-Fenster, in den Schritten und Begründungen.
+- Dungeon-Fenster: Schlachtfelder (Alteractal, Arathibecken) erscheinen nicht mehr als Dungeon.
+  Beim Scharlachroten Kloster stehen die vier Flügel mit ihren Stufen (Friedhof 30–38,
+  Bibliothek 33–41, Waffenkammer 36–44, Kathedrale 38–46; passende grün). Statt
+  "keine Quests bekannt" steht da, wenn es Quests erst später gibt: "2 Quest(s) ab Stufe 40".
+
+Leistung (deutlich weniger Ruckler)
+- Kein Ruckeln mehr beim Angreifen und Looten: Im Kampf, bei offenem Lootfenster und in den
+  ersten Sekunden nach dem Kampf wird nicht gerechnet (weder Neuplanung noch Routenvorschau);
+  danach wird einmal nachgeholt. Die Vorschau rechnet nicht mehr im selben Bild wie die
+  Neuplanung.
+- Planung deutlich schneller (im Test die längsten Hänger von ca. 146 ms auf unter 70 ms):
+  Reisezeiten bleiben über Planungen hinweg gespeichert, die Suche nach der besten Stelle
+  eines Questziels rechnet nur noch aussichtsreiche Punkte genau, Questorte vom Spiel werden
+  nur neu abgefragt, wenn sich die Quest ändert, und mehrere Prüfungen arbeiten mit
+  Zwischenspeichern (u. a. die Suche nach Vorquests für Elite-Gebiete). Die Reihenfolge der
+  Quests bleibt dabei gleich.
+- Route auf der Weltkarte zeichnet beim Hineinzoomen nicht mehr Hunderte Strich-Linien;
+  lange Wege werden ausgedünnt. Questdaten werden nach dem Einloggen im Hintergrund
+  vorbereitet statt mitten in einer Planung.
+- /lm leistung zeigt jetzt auch Pfeil, Karte, Dungeon-Check, Fensteranzeige, Reisezeit und
+  Spiel-Abfragen, sortiert nach Dauer, und bei der langsamsten Planung die einzelnen Teile.
+
+Verbessert / behoben
+- Annahmen im selben Gebiet, die weit weg liegen (z. B. "Land Ho!" unten in der Faldirbucht,
+  während um dich herum Ziele warten), werden nach Entfernung eingereiht, statt wegen ihrer
+  Folgequests vorgezogen zu werden.
+- Lua-Fehler in Dungeons behoben ("secret boolean" in Smart.lua): Das Spiel liefert dort im
+  Kampf manche Werte (z. B. AFK-Status, Kampf, Reittier-Tempo) als "geheim". Levelmate fragt
+  diese jetzt abgesichert ab.
+- Nach der Landung eines Fluges geht die Route sofort weiter (vorher bis zu 30 s
+  "Im Flug – Route wird nach der Landung fortgesetzt").
+
+English summary: Much smoother: no replanning while fighting, looting or right after combat,
+and planning is roughly twice as fast (longest hitches cut by more than half). Timed quests
+show a countdown, go first and are only picked up when you can finish them. Dungeon prep:
+"x/y quests" per dungeon, where missing prerequisite chains start, "Pick up quests" plans
+them, and a "Ready for ..." message. New ways up (/lm ascent) for ramps, lifts and bridges.
+The dungeon window can be moved and resized on its own, shows the four Scarlet Monastery wings, hides
+battlegrounds and tells you from which level quests open up. Dungeon names follow your game language,
+far-away pickups in the same zone no longer jump the queue, no more Lua error in dungeons, and the route continues right
+after landing.
+
+
+Levelmate 1.0.5
+===============
+
+Neu
+- Info-Symbol (i) oben rechts in der Schritt-Karte und bei jeder Quest im Questlog-Bereich.
+  Maus drüber erklärt in einem Satz, warum der Schritt gerade dran ist (z. B. "Direkt neben
+  dir – erst alles hier mitnehmen", "Liegt auf dem Weg", "Im selben Lager: 3 fertige Quests
+  abgeben"), dazu XP und XP/min im Vergleich zum Schnitt und ggf. "Vorquest für ...",
+  "lohnt sich wegen der Folgequest" oder "wartet auf ...". Bei ausgelassenen Quests steht
+  der Grund. Quests, die sich nur wegen ihrer Folgequest lohnen, tragen "(Vorquest)" im Titel.
+- Questgegenstände im Levelmate-Fenster: Hat eine Quest einen Gegenstand zum Benutzen
+  (z. B. auf Gegner), steht er als kleines Symbol neben dem (i) - anklicken zum Benutzen.
+  Per Makro "/click LevelmateItemButton" liegt der Gegenstand des aktuellen Schritts auf
+  einer Taste (auch im Kampf). In den Einstellungen abschaltbar.
+- Dungeon- und Elitequests haben ein Symbol (Dungeon-Symbol bzw. Stern) und den Hinweis
+  "Dungeonquest" bzw. "Elitequest · 2–3 Spieler empfohlen". Levelmate liest die Questart
+  auch vom Spiel - so werden auch Dungeonquests erkannt, die QuestieDB nicht kennt
+  (z. B. "Der Grabritter"). Im Modus "Nur Quests" werden sie ausgelassen.
+- Elite-Gebiete (z. B. Dun Garok): Gibt es weitere Quests für denselben Ort, nimmt Levelmate
+  erst alle an und schickt dich dann einmal hin statt mehrmals. Vorquests, die eine Quest
+  für dasselbe Gebiet freischalten (z. B. "Elixier der Pein" Teil 2), werden mit eingeplant -
+  höchstens ~15 Minuten Umweg und höchstens ein halbes Level lang.
+- /lm bug: Fehlerbericht zum Kopieren (Version, Stufe, Ort, Modus, nächste Schritte mit
+  Begründung, Questlog) - unter 2000 Zeichen für Discord, ohne Charakternamen.
+- /lm zuerst <Quest>: stellt eine Quest aus dem Questlog an die erste Stelle
+  (/lm zuerst ohne Namen: normale Reihenfolge).
+- Beim ersten Start erklärt das Modus-Fenster kurz Pfeil, Später/Überspringen und das
+  Dungeon-Fenster.
+- Reisetempo: Levelmate misst dein echtes Reittier-Tempo, sobald du aufsitzt (auch
+  schnelle Reittiere). Ohne Reitfertigkeit wird zu Fuß gerechnet; ab Stufe 40 erinnert
+  Levelmate einmal ans Reiten.
+
+Verbessert
+- Botengänge in weit entfernte Gebiete (z. B. "Die Bruderschaft der Defias" in Seenhain)
+  werden erst angenommen, wenn du im aktuellen Gebiet fertig bist und ohnehin aufbrichst.
+  Vorher sammelten sich solche fertigen Quests im Questlog und wurden oft nie abgegeben.
+- Lehrer werden nur noch vorgeschlagen, wenn du dir mindestens einen Zauber leisten kannst
+  (vorher gleich zu Beginn im Startgebiet, noch ohne Geld).
+- Route auf der Weltkarte: wird beim Zoomen und Verschieben sofort neu gezeichnet.
+- Begründung "lohnt sich nicht" bei zu hohen Quests sagt jetzt "Stufe X, zu hoch für dich".
+
+Behoben
+- Fertige Quests werden wieder zuerst abgegeben: Warteten mehrere fertige Quests im selben
+  Lager (z. B. 5 Quests in Dunkelhain), schickte Levelmate dich trotzdem in ein anderes
+  Gebiet. Ab 3 fertigen Quests in einem Lager wird jetzt erst abgegeben.
+- Questgegenstände werden nicht mehr "im Auktionshaus kaufen" vorgeschlagen (z. B. Blut des
+  Schwarzen Drachenchampions, Mosh'aru-Tafeln). Ohne bekannten Fundort zeigt Levelmate
+  das Questgebiet laut Karte.
+- Levelmate schickt dich nicht mehr in die Hauptstadt der anderen Fraktion (z. B. Allianz-
+  Magierquest "Untersuchungen im Blauen Eremiten" führte nach Unterstadt).
+- "Nächste Schritte" blieb manchmal dauerhaft bei "Reihenfolge wird berechnet …" hängen
+  (z. B. direkt nach einer Abgabe oder bei einem Lehrer-Schritt). Die Liste erscheint jetzt
+  trotzdem und wird spätestens nach 15 s neu berechnet.
+- Volles Questlog: Der Abbrechen-Vorschlag richtet sich jetzt nach derselben Bewertung wie
+  das Auslassen (inkl. Stufen-Risiko).
+
+Intern
+- Testlauf mit den echten Questdaten (alle Startgebiete, Stufe 1 bis 35+), um Routenfehler
+  vor dem Release zu finden; Planungszeit unverändert (~6–15 ms).
+
+English summary: New (i) icon on the step card and next to each quest explains why a step
+is suggested (or why a quest is skipped); prerequisite-only quests are marked. Usable quest
+items appear as a clickable icon next to the quest (macro /click LevelmateItemButton for the
+current step). Dungeon and elite quests are marked with icons (elite: 2–3 players
+recommended), also dungeon quests QuestieDB doesn't know. Elite areas are done in one trip,
+including prerequisites that unlock more quests there. New /lm bug (copyable report for
+Discord) and /lm first <quest>. First-run quick tour. Real mount speed is measured.
+Far-away delivery quests are only picked up when you're done in the current zone; trainers
+only when you can afford a spell. Fixed: finished quests at a hub are turned in first again,
+quest items no longer suggested as "buy at the auction house", no routing into the other
+faction's capital, "Next steps" no longer stuck on "calculating order".
+
+Levelmate 1.0.4
+===============
+
+- Neues Dungeon-Fenster (Schlüssel-Symbol oben im Fenster, in den Modi mit Dungeons):
+  zeigt die Dungeons für deine Stufe mit Stufenbereich (ideal / bald grau / ab Stufe X),
+  Dungeonquests im Log, abholbaren Quests (mit Ort) und fehlenden Vorquests.
+  "Quests abholen" holt die Quests dieses Dungeons als Nächstes ab,
+  "Jetzt hin" macht den Dungeon sofort zum nächsten Schritt (z. B. wenn die Gruppe bereit ist).
+- Dungeons werden öfter von selbst vorgeschlagen: Dungeonquests passender Dungeons werden
+  bevorzugt angenommen, und ein Dungeon wird nicht mehr so lange für spätere Quests aufgeschoben.
+- Story + Dungeons ist jetzt ausdrücklich Slow-Leveling: angefangene Questreihen werden bis
+  zum Ende gespielt (auch in anderen Gebieten und wenn sie wenig XP bringen), Reihen, die zu
+  einem Dungeon führen, werden bevorzugt, und der Dungeon ist das Finale der Geschichte.
+  Wird eine Reihe grau, fragt Levelmate einmal: "Zu Ende spielen" oder "Überspringen".
+- Pfeil: führte manchmal vom Ziel weg, wenn du einen anderen Weg gelaufen bist als geplant.
+  Der Weg wird jetzt ab deiner aktuellen Position neu berechnet und laufend aktualisiert.
+  Rechtsklick auf den Pfeil: direkt zum Ziel (Luftlinie) bzw. wieder dem Weg folgen.
+- Questnamen im Levelmate-Fenster (aktueller Schritt, Nächste Schritte, Questlog) sind
+  anklickbar und öffnen die Quest im Questlog des Spiels.
+- Mehr Startwissen: 10 weitere Gebietsübergänge (u. a. Hillsbrad–Alterac, Tirisfal–Undercity)
+  und über 800 Wegfelder aus der Community (Kalimdor und Östliche Königreiche).
+- /lm export: Wege werden etwa 4-mal kompakter exportiert und in Teile mit höchstens
+  2000 Zeichen aufgeteilt (Discord-Grenze). Mit < und > zwischen den Teilen wechseln;
+  beim Import jeden Teil einzeln oder alle auf einmal einfügen.
+- Fenster ganz klein ziehen (Ecke unten rechts) zeigt nur noch den aktuellen Schritt –
+  vorher sprang es beim Loslassen wieder auf zwei "Nächste Schritte" auf.
+- Route auf der Weltkarte: gelbe Linie zum aktuellen Ziel, die nächsten Schritte gestrichelt
+  und nummeriert. Funktioniert auch mit OpenMap. Ein/aus in den Einstellungen oder mit /lm karte
+
+English: new dungeon window (key icon, modes with dungeons) listing the dungeons for
+your level with their quests, "Pick up quests" and "Go now". Dungeons are suggested
+more often. "Story + dungeons" is now slow leveling: started chains are finished,
+dungeons are the finale, and grey chains ask "finish or skip". Fixed the arrow pointing
+away from the target when you took another path; right-click the arrow for a straight
+line. The route is drawn on the world map (works with OpenMap; /lm map). More built-in knowledge: 10 more learned zone crossings
+and 800+ path cells from the community. /lm export is about 4x smaller and split into parts of
+at most 2000 characters for Discord. Dragging the window
+small now keeps just the current step. Quest names
+in the Levelmate window can be clicked to open the quest in your quest log.
+
+Levelmate 1.0.3
+===============
+
+- "Überspringen" bei Reiseschritten (Fliegen, Ruhestein, Schiff/Zeppelin) funktioniert:
+  15 Minuten lang wird stattdessen gelaufen.
+- Feste Gebietsübergänge für Kalimdor eingebaut (Pässe/Straßen): Durotar–Brachland,
+  Brachland–Eschental, Brachland–Steinkrallengebirge, Brachland–Düstermarschen,
+  Steinkrallengebirge–Desolace, Desolace–Feralas, Tausend Nadeln–Feralas, Klauenpfad.
+  Levelmate kennt diese Wege jetzt von Anfang an, ohne sie erst lernen zu müssen.
+- Jetzt 43 feste Übergänge auf beiden Kontinenten, u. a. Mulgore–Brachland, Großer Aufzug,
+  Tausend Nadeln–Tanaris, Tanaris–Un'Goro, Un'Goro–Silithus, Dunkelküste–Eschental,
+  Eschental–Teufelswald/Azshara, Holzschlundfeste (Mondlichtung/Winterquell), Stadttore
+  von Orgrimmar, Sturmwind und Eisenschmiede, Elwynn–Westfall/Dämmerwald, Drei Ecken,
+  Dämmerwald–Schlingendorn/Gebirgspass, Sümpfe des Elends, Ödland–Sengende Schlucht,
+  Dun Algaz, Thandolübergang, Thoradinswall, Hillsbrad–Hinterland/Alterac/Silberwald,
+  Tirisfal–Silberwald, Bollwerk und Thondroril-Brücke.
+- Übergänge werden jetzt auch aus allen gelaufenen Wegen abgeleitet (eigene Wege und
+  mitgeliefertes Startwissen): Wo ein Weg eine Gebietsgrenze kreuzt, kennt Levelmate den
+  Übergang – das Spiel liefert dafür die echten Gebietsgrenzen.
+- /lm wege: zeigt, wie viele Übergänge und Wegfelder Levelmate kennt.
+- Wege ins Nachbargebiet ohne gelernten Übergang werden realistischer (+60 %) angesetzt –
+  Gebietsgrenzen sind meist Gebirge. Verhindert z. B. "zum Flugmeister über den Berg".
+- Bibliotheksquests (Bücher bei den Bibliothekaren) werden nicht mehr vorgeschlagen –
+  ihnen fehlte oft die Vorquest. Schon angenommene Bücher kannst du weiter abgeben.
+- Neuer Modus "Story + Dungeons" (neben "Nur Quests" und "Quests + Dungeons"):
+  Nur Questreihen (ab 4 zusammenhängenden Quests), Dungeon- und Klassenquests.
+  Einzelne Füllquests werden ausgelassen – außer es gibt gerade zu wenig Story-Quests,
+  dann kommen die lohnendsten Füllquests dazu, damit du nicht hängen bleibst.
+- Neuer Knopf "Später" neben "Überspringen":
+  "Später" stellt einen Schritt zurück, er kommt nach einem halben Level wieder (wie bisher).
+  "Überspringen" nimmt eine Quest dauerhaft aus der Route. Der Pfeil holt die letzte
+  zurück, /lm ausgelassen zeigt die Anzahl, /lm ausgelassen leeren holt alle zurück.
+- Die Meldung "Neue Klassenquest verfügbar" nennt jetzt Gebiet und Schritt der Route
+  (z. B. "Orgrimmar, Schritt 4 der Route") und erscheint nur, wenn die Quest auch
+  wirklich eingeplant ist.
+- Wenn Forever ein Questziel geändert hat, zeigt Levelmate den Gegenstand aus deinem
+  Questlog (z. B. "Elixier der Pein": Geringes Trollblutelixier statt Starker Trollbluttrank).
+
+English: new "Story + dungeons" mode (quest chains, dungeon and class quests
+only; filler quests only when there are too few). New "Later" button (back after
+half a level) next to "Skip" (removes a quest for good; /lm skipped,
+/lm skipped clear). "Skip" works on travel steps (walk instead for 15 minutes).
+43 built-in zone crossings on both continents plus crossings learned from walked
+paths (/lm paths). Library book quests are no longer suggested, class quest
+messages show zone and route step, and quest items that Forever changed are
+shown with the name from your quest log.
+
+Levelmate 1.0.2
+===============
+
+- Talentpunkte werden in WoW Forever wieder angezeigt ("Stufe 35 +1 Talentpunkt").
+  Forever nutzt das neue Talentsystem; die alte Abfrage gibt es dort nicht mehr.
+- Quests, die an einem Objekt starten (z. B. Bibliotheksbücher), zeigen den Namen
+  des Objekts statt eines weit entfernten NPCs.
+- Kill-Credit-Ziele (zähmen, benutzen, begleiten) zählen keine Gegner-XP mehr.
+- Questgegenstände ohne bekannten Fundort (neue Forever-Quests, z. B. "Opportunistische
+  Bildung") schicken nicht mehr ins Auktionshaus, sondern zur Questmarkierung des Spiels.
+- Volles Questlog: "Abbrechen" wird erst vorgeschlagen, wenn höchstens noch 1 Platz frei
+  ist - und nicht direkt für eine Quest, die du gerade selbst übersprungen hast.
+- Fehler behoben: "Überspringen" bei einem Abbrechen-Vorschlag tat nichts (der Schritt
+  blieb hängen). Jetzt wird der Vorschlag bis zur nächsten Stufe ausgeblendet.
+- /lm talente: Diagnose für die Talentpunkte-Anzeige.
+
+English: unspent talent points are shown again in WoW Forever, quests starting
+at an object show the object's name, no mob XP for kill-credit objectives, quest
+items with unknown location no longer point to the auction house, fixed "Skip"
+doing nothing on an abandon suggestion, abandon is only suggested with 1 free slot.
+
+Levelmate 1.0.1
+===============
+
+- Desolace: "Allianz mit den Magram" und "Allianz mit den Gelkis" schließen sich
+  aus. Ist eine davon erledigt, wird die andere nicht mehr eingeplant.
+- Rufziele klarer: "Gelkisklan: Feindselig (Ziel: Freundlich)" statt
+  "Feindselig / Freundlich".
+- /lm warum <Quest> zeigt bei Abgaben, worauf sie gerade warten.
+- Gegner-XP: Bei Kill- und Drop-Quests zählt jetzt auch die XP der Gegner
+  (geschätzt nach Gegner- und Spielerstufe). Anzeige z. B. "≈660 XP + ≈1700 Gegner".
+- Fertige Abgaben werden nicht mehr zurückgestellt, wenn der nächste Schritt
+  ohnehin woanders hinführt und die Abgabe näher liegt.
+
+English: Magram/Gelkis alliances are now mutually exclusive, clearer
+reputation goals, /lm why <quest> explains why a turn-in is waiting,
+mob XP now counts for kill/drop quests, nearby turn-ins are no longer
+held back for an unrelated far-away step.
+
 Levelmate 1.0.0 – erste Vollversion
 ===================================
 

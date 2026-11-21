@@ -83,17 +83,31 @@ function DB.AreaToUiMap(areaId)
 end
 
 -- Liefert Name und Eingangskoordinaten {uiMap, x, y}, falls areaId ein Dungeon ist.
+-- Dungeon-Namen in der Sprache des Spiels (QuestieDB liefert nur Englisch).
+-- Die englischen Namen bleiben intern fuer die Stufentabelle erreichbar.
+local dungeonLoc, dungeonEn = {}, {}
+function DB.DungeonEnglish(name) return name and dungeonEn[name] or name end
 function DB.Dungeon(areaId)
     ZoneTables()
     local d = dungeons[areaId]
     if not d then return nil end
+    local name = dungeonLoc[areaId]
+    if not name then
+        name = d[1]
+        if C_Map and C_Map.GetAreaInfo then
+            local ok, n = pcall(C_Map.GetAreaInfo, areaId)
+            if ok and type(n) == "string" and n ~= "" then name = n end
+        end
+        dungeonLoc[areaId] = name
+        if d[1] then dungeonEn[name] = d[1] end
+    end
     local entrance
     local loc = type(d[4]) == "table" and d[4][1]
     if loc then
         local map = DB.AreaToUiMap(loc[1])
         if map then entrance = { map = map, x = loc[2], y = loc[3] } end
     end
-    return d[1], entrance
+    return name, entrance
 end
 
 ---------------------------------------------------------------------------

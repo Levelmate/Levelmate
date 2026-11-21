@@ -80,6 +80,12 @@ Check("Hinweis im Chat bei neuer Klassenquest", nil,
 Check("Zielpfeil anzeigen", nil,
     function() return not Levelmate_DB.arrowHidden end,
     function(v) if v == (Levelmate_DB.arrowHidden and true or false) then Levelmate.Arrow.Toggle() end end)
+Check("Route auf der Weltkarte zeigen", "Linie zum Ziel und nächste Schritte (auch /lm karte)",
+    function() return Levelmate_DB.mapRoute ~= false end,
+    function(v) Levelmate_DB.mapRoute = v and true or false; if Levelmate.Arrow.RefreshMap then Levelmate.Arrow.RefreshMap() end end)
+Check("Questgegenstände im Questlog zeigen", "Symbol bei der Quest im Levelmate-Fenster, anklicken zum Benutzen",
+    function() return Levelmate_DB.itemButton ~= false end,
+    function(v) Levelmate_DB.itemButton = v and true or false; if Levelmate.Refresh then Levelmate.Refresh() end end)
 local tomtom = Check("TomTom-Wegpunkte setzen", "nur wenn das Addon TomTom installiert ist",
     function() return Levelmate_DB.useTomTom end,
     function(v) Levelmate_DB.useTomTom = v end)
