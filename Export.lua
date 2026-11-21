@@ -72,72 +72,18 @@ function E.Show(mode)
     importBtn:SetText(L("Importieren"))
     if mode == "import" then
         title:SetText(L("Wege importieren"))
-        hint:SetText(L("Text einfügen (Strg+V) und auf \"Importieren\" klicken. Bei mehreren Teilen: jeden Teil einzeln importieren oder alle auf einmal einfügen."))
+        hint:SetText(L("Text einfügen (Strg+V) und auf \"Importieren\" klicken."))
         edit:SetText("")
         importBtn:Show()
-        if E.HideParts then E.HideParts() end
     else
         local text, gates, cells = Levelmate.Travel.ExportText()
         title:SetText(L("Wege exportieren"))
-        -- Discord erlaubt nur 2000 Zeichen je Nachricht -> in Teile aufteilen.
-        -- Jede Zeile ist fuer sich gueltig, darum geht der Import Teil fuer Teil
-        -- (oder alle Teile auf einmal eingefuegt).
-        E.parts = E.Split(text, E.PART_CHARS)
-        E.part = 1
-        E.info = string.format(L("%d Gebietsübergänge, %d Wegfelder."), gates, cells)
-        E.ShowPart()
+        hint:SetText(string.format(L("%d Gebietsübergänge, %d Wegfelder. Mit Strg+C kopieren und z. B. per Discord schicken."),
+            gates, cells))
+        edit:SetText(text)
         importBtn:Hide()
     end
     f:Show()
     edit:SetFocus()
     if mode ~= "import" then edit:HighlightText() end
 end
-
-E.PART_CHARS = 1900
-function E.Split(text, max)
-    local parts, cur, n = {}, {}, 0
-    local header = "Levelmate-Export 1"
-    for line in tostring(text):gmatch("[^\n]+") do
-        if line ~= header then
-            if n + #line + 1 > max - #header - 12 and #cur > 0 then
-                parts[#parts + 1] = cur; cur, n = {}, 0
-            end
-            cur[#cur + 1] = line; n = n + #line + 1
-        end
-    end
-    if #cur > 0 or #parts == 0 then parts[#parts + 1] = cur end
-    for i, lines in ipairs(parts) do
-        parts[i] = header .. " (" .. i .. "/" .. #parts .. ")\n" .. table.concat(lines, "\n")
-    end
-    return parts
-end
-
-local prevBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-prevBtn:SetSize(28, 22)
-prevBtn:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 14, 14)
-prevBtn:SetText("<")
-local nextBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-nextBtn:SetSize(28, 22)
-nextBtn:SetPoint("LEFT", prevBtn, "RIGHT", 96, 0)
-nextBtn:SetText(">")
-local partLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-partLabel:SetPoint("LEFT", prevBtn, "RIGHT", 6, 0)
-partLabel:SetWidth(84)
-
-function E.ShowPart()
-    local n = #(E.parts or {})
-    local i = math.max(1, math.min(E.part or 1, n))
-    E.part = i
-    edit:SetText(E.parts[i] or "")
-    partLabel:SetText(string.format(L("Teil %d/%d"), i, n))
-    hint:SetText(E.info .. " " .. (n > 1
-        and string.format(L("Discord erlaubt 2000 Zeichen je Nachricht: Teil für Teil kopieren (Strg+C) und schicken, mit > zum nächsten Teil."))
-        or L("Mit Strg+C kopieren und z. B. per Discord schicken.")))
-    prevBtn:SetShown(n > 1); nextBtn:SetShown(n > 1); partLabel:SetShown(n > 1)
-    edit:SetFocus(); edit:HighlightText()
-end
-prevBtn:SetScript("OnClick", function() E.part = (E.part or 1) - 1; E.ShowPart() end)
-nextBtn:SetScript("OnClick", function() E.part = (E.part or 1) + 1; E.ShowPart() end)
-prevBtn:Hide(); nextBtn:Hide(); partLabel:Hide()
-
-function E.HideParts() prevBtn:Hide(); nextBtn:Hide(); partLabel:Hide() end

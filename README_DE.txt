@@ -22,9 +22,8 @@ Das Fenster
   Einstellungen.
 - Darunter die empfohlenen Gebiete für deine Stufe.
 - Die Karte zeigt den aktuellen Schritt mit Bewertung, XP und Zeit.
-  "Später" stellt den Schritt zurück (kommt nach einem halben Level wieder),
-  "Überspringen" nimmt eine Quest dauerhaft aus der Route. Der Pfeil holt
-  den letzten Schritt sofort zurück, /lm ausgelassen leeren holt alle zurück.
+  "Überspringen" stellt den Schritt zurück (kommt nach einer halben Stufe
+  wieder), der Pfeil daneben holt ihn sofort zurück.
 - "Nächste Schritte" und "Questlog" lassen sich per Klick auf- und zuklappen.
 - Klassenlehrer: Erscheint als Schritt, wenn du neue Zauber lernen kannst
   und der Lehrer in der Nähe ist oder du in seiner Hauptstadt bist.
@@ -48,10 +47,6 @@ Befehle
 /lm scale 0.8  Fenstergröße (0.5 bis 1.5)
 /lm reset      übersprungene Quests und Fensterposition zurücksetzen
 /lm warum <Quest>  erklärt, warum eine Quest (nicht) vorgeschlagen wird
-/lm karte      Route auf der Weltkarte ein/aus
-/lm wege       bekannte Gebietsübergänge und Wege
-/lm ausgelassen  dauerhaft übersprungene Quests (/lm ausgelassen leeren: alle zurück)
-Rechtsklick auf den Pfeil: direkt zum Ziel / wieder dem Weg folgen
 /lm lehrer     zeigt, was Levelmate über Lehrer und Zauber weiß
 /lm export     gelernte Wege als Text zum Kopieren (z. B. für den Entwickler)
 /lm import     Wege aus so einem Text übernehmen

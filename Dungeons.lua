@@ -1,0 +1,21 @@
+Levelmate.Dungeons = {
+    -- Dungeon ranges are general guide references, not live group availability.
+    ["RagefireChasm"] = { name = "Flammenschlund", minLevel = 13, maxLevel = 18, faction = "Horde" },
+    ["WailingCaverns"] = { name = "Höhlen des Wehklagens", minLevel = 17, maxLevel = 24 },
+    ["ShadowfangKeep"] = { name = "Burg Schattenfang", minLevel = 18, maxLevel = 26 },
+    ["BlackfathomDeeps"] = { name = "Tiefschwarze Grotte", minLevel = 24, maxLevel = 32 },
+    ["Stockades"] = { name = "Das Verlies", minLevel = 24, maxLevel = 32, faction = "Alliance" },
+    ["Gnomeregan"] = { name = "Gnomeregan", minLevel = 29, maxLevel = 38 },
+    ["RazorfenKraul"] = { name = "Kral der Klingenhauer", minLevel = 30, maxLevel = 40 },
+    ["ScarletMonastery"] = { name = "Scharlachrotes Kloster", minLevel = 28, maxLevel = 42 },
+    ["RazorfenDowns"] = { name = "Hügel der Klingenhauer", minLevel = 40, maxLevel = 50 },
+    ["Uldaman"] = { name = "Uldaman", minLevel = 41, maxLevel = 51 },
+    ["ZulFarrak"] = { name = "Zul'Farrak", minLevel = 44, maxLevel = 54 },
+    ["Maraudon"] = { name = "Maraudon", minLevel = 46, maxLevel = 55 },
+    ["SunkenTemple"] = { name = "Versunkener Tempel", minLevel = 50, maxLevel = 56 },
+    ["BlackrockDepths"] = { name = "Schwarzfelstiefen", minLevel = 52, maxLevel = 60 },
+    ["LowerBlackrockSpire"] = { name = "Untere Schwarzfelsspitze", minLevel = 55, maxLevel = 60 },
+    ["DireMaul"] = { name = "Düsterbruch", minLevel = 55, maxLevel = 60 },
+    ["Scholomance"] = { name = "Scholomance", minLevel = 58, maxLevel = 60 },
+    ["Stratholme"] = { name = "Stratholme", minLevel = 58, maxLevel = 60 },
+}
