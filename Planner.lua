@@ -44,6 +44,7 @@ local CONFIG = {
     rareSpawnWait = 90,      -- Aufschlag je Einheit bei < 3 Spawnpunkten
     unknownObjective = 300,  -- Aufschlag fuer nicht bewertbare Ziele
     eliteFactor = 3,         -- Elite-Gegner dauern deutlich laenger
+    logFullTurninBoost = 1.5, -- volles Questlog: Abgaben vorziehen (machen Platz)
     maxLogSize = 20,         -- Ersatzwert; normalerweise fragt das Addon den Client (Forever: 40)
     dungeonRun = 1800,       -- Sekunden fuer einen Dungeonlauf inkl. Gruppensuche
     followUpShare = 0.6,     -- Anteil der Folgequest-XP als Bonus
@@ -1883,7 +1884,9 @@ EliteAreas = function(phase, a1, a2, a3, a4)
                 act.timed = left
                 if (act.seconds or 0) > left then act.timedLate = true end
                 if act.score ~= math.huge then
-                    act.score = act.score * CONFIG.timedBoost
+                    -- laufende Zeitquest: immer Schritt 1 (nur /lm zuerst und
+                    -- "Jetzt hin" stehen darueber)
+                    act.score = 1e7 + act.score * CONFIG.timedBoost
                     act.pen = (act.pen or "") .. " zeitquest"
                 end
             end
@@ -2743,16 +2746,48 @@ function P.Plan(modeKey, state)
       end
     end
     Mark("A-Abbrechen")
-    -- Volles Questlog: unrentable Quests zum Abbrechen vorschlagen (wie RestedXP).
-    -- Erst wenn hoechstens noch 1 Platz frei ist. Quests, die du selbst
-    -- uebersprungen hast ("spaeter"), nur wenn es keine andere gibt - sonst
-    -- wuerde Levelmate direkt nach dem Ueberspringen das Abbrechen verlangen.
+    -- Volles Questlog: erst erledigen und abgeben, was geht - das macht Platz.
+    -- Abbrechen nur, wenn das Log wirklich voll ist UND nichts mehr zu tun ist
+    -- (keine Ziele, keine Abgaben). Quests, die du selbst uebersprungen hast
+    -- ("spaeter"), nur wenn es keine andere gibt.
+    local doable = false
+    for _, act in ipairs(actions) do
+        if act.kind == "DO" or act.kind == "TURNIN" then doable = true; break end
+    end
+    if #live >= MaxLogSize() and doable then
+        for _, act in ipairs(actions) do
+            if act.kind == "DO" or act.kind == "TURNIN" then act.logFull = true end
+            -- Abgaben machen sofort Platz (und schalten Folgequests frei): etwas vorziehen,
+            -- die Reihenfolge nach Weg/Nutzen bleibt aber erhalten
+            if act.kind == "TURNIN" and act.score ~= math.huge then
+                act.score = act.score * CONFIG.logFullTurninBoost
+                act.pen = (act.pen or "") .. " log-voll-abgeben"
+            end
+        end
+    end
+    local snooze = Levelmate_CharDB and Levelmate_CharDB.abandonSnooze
+    local function Snoozed(c) return snooze and snooze[c.q.id] == player.level end
+    -- Graue Quests (kaum XP) duerfen bei (fast) vollem Log weg - auch wenn es noch
+    -- anderes zu tun gibt. Nicht: Klassenquests und graue Reihen, die du zu Ende
+    -- spielen willst.
+    local greyPick
     if #live >= MaxLogSize() - 1 then
+        local grey = GreyLevel(player.level)
+        for _, c in ipairs(cands) do
+            if c.live and c.live.status ~= Levelmate.Quests.STATUS_READY
+               and (c.q.questLevel or 99) <= grey and not c.classQuest and not c.storyStarted
+               and not Snoozed(c)
+               and (not greyPick or (c.q.questLevel or 0) < (greyPick.q.questLevel or 0)) then
+                greyPick = c
+            end
+        end
+    end
+    if greyPick then
+        table.insert(actions, { kind = "ABANDON", c = greyPick, grey = true, seconds = 5, value = 0, score = math.huge, xpPerMin = 0 })
+    elseif #live >= MaxLogSize() and not doable then
         local worst, worstOwn
         for _, c in ipairs(result.skipped) do
-            local snooze = Levelmate_CharDB and Levelmate_CharDB.abandonSnooze
-            if c.live and c.live.status ~= Levelmate.Quests.STATUS_READY
-               and not (snooze and snooze[c.q.id] == player.level) then
+            if c.live and c.live.status ~= Levelmate.Quests.STATUS_READY and not Snoozed(c) then
                 -- nach der Bewertung inkl. Stufen-Risiko (wie beim Auslassen), nicht nach roher XP/min
                 if c.skipReason == "von dir übersprungen" then
                     if not worstOwn or (c.eff or 0) < (worstOwn.eff or 0) then worstOwn = c end
@@ -2761,7 +2796,7 @@ function P.Plan(modeKey, state)
                 end
             end
         end
-        worst = worst or (#live >= MaxLogSize() and worstOwn) or nil
+        worst = worst or worstOwn
         if worst then
             table.insert(actions, { kind = "ABANDON", c = worst, seconds = 5, value = 0, score = math.huge, xpPerMin = 0 })
         end

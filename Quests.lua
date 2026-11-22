@@ -83,6 +83,20 @@ function Q.Rebuild()
     if CQL and CQL.GetNumQuestLogEntries and CQL.GetInfo then
         local n = Call(CQL.GetNumQuestLogEntries) or 0
         local header
+        -- Klassische Quest-Timer (das, was im Spiel oben als Countdown laeuft):
+        -- GetQuestTimers() liefert die Restzeiten, GetQuestIndexForTimer die Logzeile.
+        -- Auf WoW Forever liefert GetTimeAllowed dafuer oft nichts.
+        local timerByIndex = {}
+        if GetQuestTimers then
+            local ok, t = pcall(function() return { GetQuestTimers() } end)
+            if ok and t then
+                for k, v in ipairs(t) do
+                    local left = tonumber(v)
+                    local idx = GetQuestIndexForTimer and Call(GetQuestIndexForTimer, k)
+                    if left and idx then timerByIndex[idx] = left end
+                end
+            end
+        end
         for i = 1, n do
             local info = Call(CQL.GetInfo, i)
             if type(info) == "table" and info.isHeader then header = info.title end
@@ -109,6 +123,19 @@ function Q.Rebuild()
                     Levelmate_DB = Levelmate_DB or {}
                     Levelmate_DB.timedQuests = Levelmate_DB.timedQuests or {}
                     Levelmate_DB.timedQuests[info.questID] = total
+                elseif timerByIndex[i] then
+                    -- Gesamtzeit unbekannt: groesste je gesehene Restzeit merken
+                    -- (direkt nach dem Annehmen ist das praktisch die Gesamtzeit)
+                    Levelmate_DB = Levelmate_DB or {}
+                    Levelmate_DB.timedQuests = Levelmate_DB.timedQuests or {}
+                    local known = Levelmate_DB.timedQuests[info.questID] or 0
+                    if timerByIndex[i] > known then
+                        known = math.ceil(timerByIndex[i] / 60) * 60
+                        Levelmate_DB.timedQuests[info.questID] = known
+                    end
+                    q.timeTotal = known
+                    q.timeLeft = timerByIndex[i]
+                    q.timeAt = GetTime and GetTime() or 0
                 end
                 -- Questart laut Spiel (wie im Questlog "(Dungeon)" / "(Elite)")
                 local tag = CQL.GetQuestTagInfo and Call(CQL.GetQuestTagInfo, info.questID)

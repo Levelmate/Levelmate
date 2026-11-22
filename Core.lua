@@ -2,7 +2,7 @@ local addonName = ...
 local L = Levelmate.L
 Levelmate = Levelmate or {}
 Levelmate.name = addonName
-Levelmate.version = "1.0.6"
+Levelmate.version = "1.0.7"
 
 local function Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage(L("|cff66ccffLevelmate|r: ") .. tostring(msg))
@@ -204,15 +204,37 @@ local function OpenQuest(id)
         Print(string.format(L("„%s“ ist noch nicht in deinem Questlog – erst annehmen."), q and q.name or tostring(id)))
         return
     end
-    -- neuer Client: Questlog neben der Karte; alter: eigenes Questlog-Fenster
+    -- neuer Client: Questlog neben der Karte; alter: eigenes Questlog-Fenster.
+    -- Bei Dungeon- und manchen Elitequests kennt das Spiel keine Karte fuer die
+    -- Quest - dann schlaegt der erste Weg still fehl. Darum mehrere Wege
+    -- nacheinander, bis die Questdetails wirklich zu sehen sind.
+    local function Shown(f) return f and f.IsShown and f:IsShown() and true or false end
+    local function DetailsShown()
+        return Shown(QuestMapFrame and QuestMapFrame.DetailsFrame) or Shown(QuestLogFrame)
+            or Shown(QuestLogDetailFrame)
+    end
+    if C_QuestLog.SetSelectedQuest then pcall(C_QuestLog.SetSelectedQuest, id) end
     if QuestMapFrame_OpenToQuestDetails then
         pcall(QuestMapFrame_OpenToQuestDetails, id)
-    elseif QuestLog_OpenToQuest then
+        if DetailsShown() then return end
+        -- Karte selbst oeffnen (aktuelles Gebiet) und dann die Details zeigen
+        if WorldMapFrame and not Shown(WorldMapFrame) then
+            if ToggleWorldMap then pcall(ToggleWorldMap) else pcall(ShowUIPanel, WorldMapFrame) end
+        end
+        if QuestMapFrame_ShowQuestDetails then pcall(QuestMapFrame_ShowQuestDetails, id) end
+        if DetailsShown() then return end
+    end
+    if QuestLog_OpenToQuest then
         pcall(QuestLog_OpenToQuest, idx)
-    else
-        if C_QuestLog.SetSelectedQuest then pcall(C_QuestLog.SetSelectedQuest, id) end
-        if QuestLog_SetSelection then pcall(QuestLog_SetSelection, idx) end
-        if ToggleQuestLog then pcall(ToggleQuestLog) elseif QuestLogFrame then ShowUIPanel(QuestLogFrame) end
+        if DetailsShown() then return end
+    end
+    if QuestLog_SetSelection then pcall(QuestLog_SetSelection, idx) end
+    if not DetailsShown() then
+        if ToggleQuestLog then pcall(ToggleQuestLog) elseif QuestLogFrame then pcall(ShowUIPanel, QuestLogFrame) end
+    end
+    if QuestLog_SetSelection then pcall(QuestLog_SetSelection, idx) end
+    if not DetailsShown() then
+        Print(L("Das Spiel konnte diese Quest nicht im Questlog öffnen – bitte mit L (Questlog) nachsehen."))
     end
 end
 Levelmate.OpenQuest = OpenQuest
@@ -1431,9 +1453,12 @@ function DescribeActionRaw(act)
             string.format(L("Ruhestein benutzen (spart ca. %d min)%s\nDort: %s"),
                 math.floor((act.saves or 0) / 60 + 0.5),
                 Levelmate.Travel.HearthGuessed() and L(" |cffaaaaaa(Ort geschätzt)|r") or "", nxt)
+    elseif act.kind == "ABANDON" and act.grey then
+        return L("|cffff6060Abbrechen:|r ") .. QuestName(c),
+            L("Dein Questlog ist fast voll und diese Quest ist grau (kaum noch XP).\nQuestlog öffnen (L) > Quest auswählen > Abbrechen. Behalten? Dann „Überspringen“.")
     elseif act.kind == "ABANDON" then
         return L("|cffff6060Abbrechen:|r ") .. QuestName(c),
-            L("Dein Questlog ist fast voll und diese Quest lohnt sich nicht mehr (") .. Levelmate.LT(c.skipReason or "") .. L(").\nQuestlog öffnen (L) > Quest auswählen > Abbrechen.")
+            L("Dein Questlog ist voll und diese Quest lohnt sich nicht mehr (") .. Levelmate.LT(c.skipReason or "") .. L(").\nQuestlog öffnen (L) > Quest auswählen > Abbrechen.")
     elseif act.kind == "DUNGEON" then
         local names = {}
         for _, dc in ipairs(act.group.list) do table.insert(names, QuestName(dc)) end
@@ -1597,6 +1622,7 @@ local function StepReason(act, plan)
         return G(L("Von dir gewählt (/lm zuerst)"))
     end
     if act.onTheWay then return G(L("Liegt auf dem Weg zum nächsten Ziel – kurz mitnehmen")) end
+    if act.logFull then return G(L("Questlog voll – erst erledigen und abgeben, das macht Platz für neue")) end
     if act.kind == "TURNIN" and (act.hubCount or 0) >= 2 then
         return G(string.format(L("Im selben Lager: %d fertige Quests abgeben"), act.hubCount))
     end

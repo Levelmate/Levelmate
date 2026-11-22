@@ -1,3 +1,28 @@
+Levelmate 1.0.7
+===============
+
+Verbessert / behoben
+- Volles Questlog: Levelmate schlägt nicht mehr sofort vor, normale Quests abzubrechen.
+  Solange es noch Ziele zu erledigen oder Quests abzugeben gibt, kommen diese zuerst
+  ("Questlog voll – erst erledigen und abgeben, das macht Platz für neue"). Die Route bleibt
+  nach Weg und Nutzen geplant; Abgaben werden etwas vorgezogen, weil sie sofort Platz machen.
+- Graue Quests (kaum noch XP) schlägt Levelmate bei (fast) vollem Log weiterhin zum Abbrechen
+  vor - nicht Klassenquests und keine grauen Reihen, die du zu Ende spielen willst. Behalten?
+  "Überspringen" blendet den Vorschlag bis zur nächsten Stufe aus. Eine normale Quest wird
+  nur noch vorgeschlagen, wenn das Log ganz voll ist und darin nichts mehr sinnvoll machbar ist.
+- Zeitquests: Der Countdown wird jetzt auch bei Quests erkannt, deren Timer das Spiel nur über
+  die klassische Quest-Uhr meldet (oben am Bildschirm) - vorher zeigte Levelmate dort nichts.
+  Eine laufende Zeitquest ist jetzt immer Schritt 1.
+- Questnamen anklicken öffnet jetzt auch Dungeon- und Elitequests im Questlog (das Spiel kennt
+  für sie oft keine Karte; Levelmate probiert jetzt mehrere Wege und sagt Bescheid, wenn
+  keiner klappt).
+
+English summary: Full quest log: finish and turn in first instead of abandoning – only grey
+quests are still suggested for abandoning (skip to keep them), and a normal quest only when
+nothing in the log is doable anymore. Timed quests are now also detected via the classic quest
+timer and always come first. Clicking dungeon and elite quest names opens them in the quest log.
+
+
 Levelmate 1.0.6
 ===============
 
