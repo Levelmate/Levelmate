@@ -39,6 +39,7 @@ end
 
 -- Zusammengesetzte Texte (z. B. Gruende, warum eine Quest uebersprungen wird)
 local PATTERNS = {
+    { "^lange Sammelquest %(≈(%d+) min%)$", "long collection quest (≈%1 min)" },
     { "^schon abgeschlossen$", "already completed" },
     { "^steht schon im Questlog$", "already in your quest log" },
     { "^PvP%-, Fest%- oder Berufsquest$", "PvP, holiday or profession quest" },
@@ -235,6 +236,18 @@ EN["Später"] = "Later"
 EN["Spiel-Abfrage Questorte"] = "Game query: quest locations"
 EN["Reisezeit-Berechnung"] = "Travel time calculation"
 EN["    darin enthalten: "] = "    of which: "
+EN["Gruppenmodus: Du bist in keiner Gruppe."] = "Group mode: you are not in a group."
+EN["Gruppenmodus: Noch keine Daten von Mitspielern – haben sie Levelmate (ab 1.0.8)? Abgleich alle paar Sekunden."] = "Group mode: no data from group members yet – do they have Levelmate (1.0.8 or newer)? Syncs every few seconds."
+EN["Gruppenmodus: %s (Stufe %s) – %d Quests, %d gemeinsam mit dir"] = "Group mode: %s (level %s) – %d quests, %d shared with you"
+EN["Folgequest gleich hier mitnehmen – du stehst schon am NPC"] = "Pick up the follow-up right here – you are already at the NPC"
+EN["Gemeinsam mit %s"] = "Together with %s"
+EN["Lange Sammelquest (~%d min) – lohnt sich trotzdem, die Gegner geben XP"] = "Long collection quest (~%d min) – still worth it, the mobs give XP"
+EN["Lange Sammelquest: ca. %d min (seltene Drops, ~%d Kills je Gegenstand)"] = "Long collection quest: about %d min (rare drops, ~%d kills per item)"
+EN["Lange Sammelquest: ca. %d min (Fundort unbekannt, grob geschätzt)"] = "Long collection quest: about %d min (location unknown, rough estimate)"
+EN["Lange Sammelquests auslassen"] = "Skip long collection quests"
+EN["Quests mit seltenen Drops und über 45 min Arbeit nicht vorschlagen"] = "Don't suggest quests with rare drops and more than 45 min of work"
+EN["lange Sammelquest (≈%d min)"] = "long collection quest (≈%d min)"
+EN["%d starten im Dungeon"] = "%d start inside the dungeon"
 EN["Dein Questlog ist fast voll und diese Quest ist grau (kaum noch XP).\nQuestlog öffnen (L) > Quest auswählen > Abbrechen. Behalten? Dann „Überspringen“."] = "Your quest log is almost full and this quest is grey (hardly any XP).\nOpen quest log (L) > select quest > Abandon. Want to keep it? Then \"Skip\"."
 EN["Dein Questlog ist voll und diese Quest lohnt sich nicht mehr ("] = "Your quest log is full and this quest is no longer worth it ("
 EN["Questlog voll – erst erledigen und abgeben, das macht Platz für neue"] = "Quest log full – finish and turn in first, that makes room for new ones"
@@ -301,7 +314,8 @@ EN["|cff88ccffLohnt sich auch wegen der Folgequest „%s“ (+≈%d XP).|r"] = "
 EN["|cff888888Reihenfolge gerade nicht berechenbar – nächster Versuch gleich.|r"] = "|cff888888Order can't be calculated right now – retrying shortly.|r"
 EN["Dungeon "] = "Dungeon "
 EN["|cffff8040Dungeonquest|r"] = "|cffff8040Dungeon quest|r"
-EN["|cffff8040Elitequest · 2–3 Spieler empfohlen|r"] = "|cffff8040Elite quest · 2–3 players recommended|r"
+EN["|cffff8040Elitequest · 2–5 Spieler empfohlen|r"] = "|cffff8040Elite quest · 2–5 players recommended|r"
+EN["|cffff8040Dungeonquest · 5 Spieler|r"] = "|cffff8040Dungeon quest · 5 players|r"
 EN["|cffffd100Vorher annehmen (gleiches Gebiet):|r "] = "|cffffd100Pick up first (same area):|r "
 EN["|cffaaaaaaOrt im Dungeon unbekannt – der Pfeil zeigt zum Questgeber.|r"] = "|cffaaaaaaLocation inside the dungeon unknown – the arrow points to the quest giver.|r"
 EN["Normale Reihenfolge wiederhergestellt."] = "Normal order restored."

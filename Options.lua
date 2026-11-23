@@ -86,6 +86,9 @@ Check("Route auf der Weltkarte zeigen", "Linie zum Ziel und nächste Schritte (a
 Check("Questgegenstände im Questlog zeigen", "Symbol bei der Quest im Levelmate-Fenster, anklicken zum Benutzen",
     function() return Levelmate_DB.itemButton ~= false end,
     function(v) Levelmate_DB.itemButton = v and true or false; if Levelmate.Refresh then Levelmate.Refresh() end end)
+Check("Lange Sammelquests auslassen", "Quests mit seltenen Drops und über 45 min Arbeit nicht vorschlagen",
+    function() return Levelmate_DB.skipLongCollect end,
+    function(v) Levelmate_DB.skipLongCollect = v and true or nil; if Levelmate.Refresh then Levelmate.Refresh() end end)
 local tomtom = Check("TomTom-Wegpunkte setzen", "nur wenn das Addon TomTom installiert ist",
     function() return Levelmate_DB.useTomTom end,
     function(v) Levelmate_DB.useTomTom = v end)

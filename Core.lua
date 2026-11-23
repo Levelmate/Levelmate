@@ -2,7 +2,7 @@ local addonName = ...
 local L = Levelmate.L
 Levelmate = Levelmate or {}
 Levelmate.name = addonName
-Levelmate.version = "1.0.7"
+Levelmate.version = "1.0.8"
 
 local function Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage(L("|cff66ccffLevelmate|r: ") .. tostring(msg))
@@ -503,11 +503,15 @@ DLayout = function(slotW)
         for _, x in ipairs(e.inLog) do if x.ready then ready = ready + 1 end end
         local parts = {}
         -- Vorbereitung wie im Dungeon Journal: x/y Quests im Log
-        local col2 = (e.total > 0 and e.have >= e.total) and "|cff00ff00" or "|cffffd100"
+        -- Quests, die erst im Dungeon starten, kann man vorher nicht im Log haben
+        local need = (e.total or 0) - (e.inside or 0)
+        local col2 = (need > 0 and e.have >= need) and "|cff00ff00" or "|cffffd100"
         parts[#parts + 1] = col2 .. string.format(L("%d/%d Quests"), e.have or 0, e.total or 0) .. "|r"
             .. (ready > 0 and string.format(L(" (%d fertig)"), ready) or "")
         parts[#parts + 1] = string.format(L("%d abholbar"), #e.available)
-        if #e.blocked > 0 then parts[#parts + 1] = string.format(L("%d brauchen eine Vorquest"), #e.blocked) end
+        local nBlocked = #e.blocked + (e.chainLater or 0)
+        if nBlocked > 0 then parts[#parts + 1] = string.format(L("%d brauchen eine Vorquest"), nBlocked) end
+        if (e.inside or 0) > 0 then parts[#parts + 1] = string.format(L("%d starten im Dungeon"), e.inside) end
         lines[#lines + 1] = table.concat(parts, " · ")
         if #e.available > 0 then lines[#lines + 1] = L("Abholen: ") .. QuestList(e.available, 2) end
         -- Vorquest-Kette: wo faengt sie an?
@@ -520,7 +524,7 @@ DLayout = function(slotW)
             end
         end
         if #starts > 0 then lines[#lines + 1] = "|cffaaaaaa" .. L("Vorquest: ") .. "|r" .. table.concat(starts, "; ") end
-        if e.total > 0 and e.have >= e.total then lines[#lines + 1] = "|cff00ff00" .. L("Bereit – alle bekannten Quests im Log!") .. "|r" end
+        if need > 0 and e.have >= need then lines[#lines + 1] = "|cff00ff00" .. L("Bereit – alle bekannten Quests im Log!") .. "|r" end
         if e.wings then
             local w = {}
             for _, x in ipairs(e.wings) do
@@ -1340,7 +1344,7 @@ local function DescribeAction(act, keepXP)
         local icons = QuestIcons(act.c)
         if icons ~= "" then
             title = icons .. title
-            local tag = (act.c.dungeonTag or act.c.isDungeon) and L("|cffff8040Dungeonquest|r") or L("|cffff8040Elitequest · 2–3 Spieler empfohlen|r")
+            local tag = (act.c.dungeonTag or act.c.isDungeon) and L("|cffff8040Dungeonquest · 5 Spieler|r") or L("|cffff8040Elitequest · 2–5 Spieler empfohlen|r")
             detail = tag .. " · " .. (detail or "")
         end
     end
@@ -1587,8 +1591,13 @@ local function QuestInfoLines(plan, qid)
             break
         end
     end
-    if c.dungeonTag then lines[#lines + 1] = L("|cffff8040Dungeonquest|r") end
-    if c.eliteTag then lines[#lines + 1] = L("|cffff8040Elitequest · 2–3 Spieler empfohlen|r") end
+    if c.longCollect then
+        lines[#lines + 1] = "|cffffaa33" .. (c.longKills
+            and string.format(L("Lange Sammelquest: ca. %d min (seltene Drops, ~%d Kills je Gegenstand)"), c.longCollect, c.longKills)
+            or string.format(L("Lange Sammelquest: ca. %d min (Fundort unbekannt, grob geschätzt)"), c.longCollect)) .. "|r"
+    end
+    if c.dungeonTag then lines[#lines + 1] = L("|cffff8040Dungeonquest · 5 Spieler|r") end
+    if c.eliteTag then lines[#lines + 1] = L("|cffff8040Elitequest · 2–5 Spieler empfohlen|r") end
     return #lines > 0 and lines or nil
 end
 
@@ -1621,6 +1630,10 @@ local function StepReason(act, plan)
     if Levelmate.Planner.forceQuest and c.q and c.q.id == Levelmate.Planner.forceQuest then
         return G(L("Von dir gewählt (/lm zuerst)"))
     end
+    if act.groupWith then
+        return "|cff66ccff" .. string.format(L("Gemeinsam mit %s"), table.concat(act.groupWith, ", ")) .. "|r"
+    end
+    if act.atNPC then return G(L("Folgequest gleich hier mitnehmen – du stehst schon am NPC")) end
     if act.onTheWay then return G(L("Liegt auf dem Weg zum nächsten Ziel – kurz mitnehmen")) end
     if act.logFull then return G(L("Questlog voll – erst erledigen und abgeben, das macht Platz für neue")) end
     if act.kind == "TURNIN" and (act.hubCount or 0) >= 2 then
@@ -1637,6 +1650,9 @@ local function StepReason(act, plan)
     if c.areaPrereq then return G(L("Schaltet eine Quest fürs selbe Gebiet frei")) end
     local ref = plan and plan.referenceXPPerMin or 0
     if act.kind == "TURNIN" then return G(L("Fertig – Belohnung abholen")) end
+    if act.kind == "ACCEPT" and c.longCollect then
+        return "|cffffaa33" .. string.format(L("Lange Sammelquest (~%d min) – lohnt sich trotzdem, die Gegner geben XP"), c.longCollect) .. "|r"
+    end
     if ref > 0 and (c.xpPerMin or 0) >= ref then return G(L("Überdurchschnittlich viel XP pro Minute")) end
     return G(L("Beste Wahl in deiner Nähe (Weg + Aufwand + XP)"))
 end
@@ -1679,7 +1695,7 @@ function Levelmate.CheckDungeonReady()
         if e.focused and e.total > 0 and #e.available == 0 and #e.blocked == 0 and readyTold ~= e.name then
             readyTold = e.name
             Print(string.format(L("|cff00ff00Bereit für %s:|r %d/%d Quests im Log. „Jetzt hin“ im Dungeon-Fenster schickt dich zum Eingang."),
-                e.name, e.have, e.total))
+                e.name, e.have, e.total - (e.inside or 0)))
             Levelmate.Planner.SetDungeonFocus(e.area)   -- Vorbereitung beendet (Umschalter)
             if PlaySound and SOUNDKIT and SOUNDKIT.READY_CHECK then pcall(PlaySound, SOUNDKIT.READY_CHECK) end
         end
@@ -1719,6 +1735,9 @@ local function UpdateQuestRows(plan)
             note = " – " .. L(Q.Labels.READY)
         end
         local icons = c and Levelmate.QuestIcons(c) or ""
+        -- Gruppenmodus: wer aus der Gruppe hat diese Quest auch?
+        local who = Levelmate.Group and Levelmate.Group.Who and Levelmate.Group.Who(lq.questID)
+        if who then note = note .. " |cff66ccff(+" .. table.concat(who, ", ") .. ")|r" end
         local tt = Q.TimerText(lq.questID)
         local lines = { Q.Icon(lq.status) .. " " .. icons .. QLink(lq.questID, title) .. (tt and ("  " .. tt) or "") .. note }
         if lq.status == Q.STATUS_ACTIVE then
@@ -2613,6 +2632,22 @@ SlashCmdList.LEVELMATE = function(msg)
         AnchorPanel(); Levelmate.Arrow.Restore()
         Print(L("Übersprungene Quests und Fensterpositionen zurückgesetzt."))
         Refresh()
+    elseif cmd == "gruppe" or cmd == "group" then
+        local G = Levelmate.Group
+        if not (IsInGroup and IsInGroup()) then
+            Print(L("Gruppenmodus: Du bist in keiner Gruppe."))
+        elseif not (G and G.Active and G.Active()) then
+            Print(L("Gruppenmodus: Noch keine Daten von Mitspielern – haben sie Levelmate (ab 1.0.8)? Abgleich alle paar Sekunden."))
+        else
+            for name, m in pairs(G.members) do
+                local n, shared = 0, 0
+                local mine = {}
+                for _, lq in ipairs(Levelmate.Quests.GetList() or {}) do mine[lq.questID] = true end
+                for id in pairs(m.quests or {}) do n = n + 1; if mine[id] then shared = shared + 1 end end
+                Print(string.format(L("Gruppenmodus: %s (Stufe %s) – %d Quests, %d gemeinsam mit dir"),
+                    name, tostring(m.level or "?"), n, shared))
+            end
+        end
     elseif cmd == "smart" then
         local sum = Levelmate.Smart.GetSummary()
         if sum and sum.enough then

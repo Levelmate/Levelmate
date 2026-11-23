@@ -1,3 +1,57 @@
+Levelmate 1.0.8
+===============
+
+Neu
+- Gruppenmodus (Teil 1): Levelmate-Nutzer in einer Gruppe gleichen ihre Questlogs ab
+  (unsichtbar, nur Quest-IDs und Fortschritt; /lm gruppe zeigt den Stand). Quests, die ein
+  Mitspieler auch hat, werden vorgezogen und auf der Karte steht "Gemeinsam mit <Name>"; im
+  Questlog-Bereich steht hinter der Quest "(+Name)". Ohne Levelmate beim Mitspieler plant
+  alles wie bisher. Beide brauchen Levelmate 1.0.8 oder neuer.
+- Lange Sammelquests (seltene Drops, über 45 min Arbeit) werden gekennzeichnet: auf der Karte
+  "Lange Sammelquest (~X min) – lohnt sich trotzdem, die Gegner geben XP" und im (i) mit
+  geschätzten Kills je Gegenstand. In den Einstellungen gibt es "Lange Sammelquests auslassen"
+  für alle, die solche Quests lieber nicht machen (standardmäßig aus - im Leveltest wird die
+  Route ohne sie insgesamt länger und es gibt mehr Hin und Her).
+
+Verbessert / behoben
+- Route pendelt nicht mehr zwischen zwei Kontinenten: Wer per Zeppelin, Schiff, Flug oder
+  Ruhestein zu einem Ziel unterwegs ist, kommt dort jetzt auch an. Vorher konnte sich die
+  Bewertung nach der Ankunft so verschieben, dass Levelmate sofort wieder zurückschickte
+  (z. B. Zeppelin Tirisfal <-> Schlingendorntal im Kreis, vor allem mit vollem Questlog
+  auf höheren Stufen). Liegt am Ziel etwas zu Fuß Erreichbares, das besser ist, darf das
+  weiterhin vorgehen.
+- Dungeon-Fenster: Dungeons, deren Quests das Spiel unter dem Dungeon einsortiert, deren
+  Gegner in der Questdatenbank aber keine Fundorte haben, fehlten - z. B. die Forever-Dungeon
+  "City of Dalaran" (Der Grabritter, Quelle der Macht, ...). Diese Quests zählen jetzt mit,
+  auch bei anderen Dungeons (genaueres "x/y").
+- Dungeon-Fenster "Quests abholen" wirkt jetzt in jedem Modus: Im Modus "Nur Quests" wurde der
+  Knopf bisher ignoriert und die Dungeonquests blieben ausgeblendet. Jetzt kommen sie sofort
+  nach vorne.
+- Dungeon-Fenster "x/y Quests": Die Gesamtzahl zählt jetzt von Anfang an auch Folgequests der
+  Reihe und Quests, die erst im Dungeon starten ("1 startet im Dungeon"). Vorher sprang z. B.
+  "4/4" nach einer Quest auf "5/5". "Bereit" kommt, sobald du alles hast, was man vorher
+  haben kann.
+- Folgequests werden direkt beim NPC mitgenommen: Nach einer Abgabe kommt die Folgequest am
+  selben NPC sofort dran, statt erst zum nächsten NPC und dann wieder zurück zu laufen
+  ("Folgequest gleich hier mitnehmen"). Im Leveltest sinken solche Rückwege von 19 auf 1.
+- Elitequests: "2–5 Spieler empfohlen" (vorher 2–3), Dungeonquests: "5 Spieler".
+
+Intern
+- Neuer Leveltest über alle sechs Startvölker von Stufe 1 bis 60, der neben der Zeit auch
+  Hin-und-Her zwischen Gebieten, Nachholwege und liegengelassene Quests misst. Damit werden
+  die Routen in den nächsten Versionen gezielt verbessert.
+
+English summary: New group mode (part 1): Levelmate users in a group sync their quest logs,
+shared quests go first ("Together with <name>", /lm group). Long collection quests (rare
+drops) are marked, with an option to skip them. Fixes a route that could ping-pong between two continents (e.g. zeppelin
+Tirisfal <-> Stranglethorn in a loop, mostly with a full quest log at higher levels). Dungeon
+window: Forever dungeons like "City of Dalaran" show up, "Pick up quests" now works in
+"Quests only" mode too, and "x/y quests" counts chain follow-ups and quests that start inside
+the dungeon right away (no more "4/4" jumping to "5/5"). Elite quests now say "2–5 players
+recommended", dungeon quests "5 players". Follow-up quests are picked up right at the NPC you
+just turned in to, instead of walking to the next NPC and back.
+
+
 Levelmate 1.0.7
 ===============
 

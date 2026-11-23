@@ -56,6 +56,7 @@ Rechtsklick auf den Pfeil: direkt zum Ziel / wieder dem Weg folgen
 /lm export     gelernte Wege als Text zum Kopieren (z. B. für den Entwickler)
 /lm import     Wege aus so einem Text übernehmen
 /lm smart      gemessene XP pro Minute
+/lm gruppe     Gruppenmodus: welche Mitspieler (mit Levelmate) deine Quests auch haben
 /lm leistung   Rechenzeit des Addons
 /lm zuerst <Quest>  Quest aus dem Questlog an erste Stelle (/lm zuerst: normale Reihenfolge)
 /lm aufgang    Aufgang aufzeichnen (Rampe/Aufzug/Brücke): unten starten, oben nochmal

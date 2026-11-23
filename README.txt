@@ -54,6 +54,7 @@ Right-click the arrow: straight to the target / follow the path again
 /lm export     learned paths as text to copy (e.g. to send to the developer)
 /lm import     add paths from such a text
 /lm smart      measured XP per minute
+/lm group      group mode: which group members (with Levelmate) share your quests
 /lm perf       addon processing time
 /lm first <quest>  put a quest from your log first (/lm first: normal order)
 /lm ascent     record a way up (ramp/lift/bridge): start at the bottom, again at the top

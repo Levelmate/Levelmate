@@ -81,6 +81,7 @@ local CONFIG = {
     dangerLevels = 7,        -- Gebiet gilt als gefaehrlich ab so vielen Stufen ueber dir (Einstellungen)
     dangerFactor = 0.02,     -- gefaehrliche Ziele ganz nach hinten   -- ... nur wenn der Weg dorthin laenger als 5 Minuten ist        -- Klassenquests gelten als 1,5x so lohnend wie der Durchschnitt    -- optionale Quests (Begleitquests) nach hinten schieben
     stickiness = 1.6,        -- neuer Schritt muss 60 % besser sein, um den bisherigen abzuloesen
+    atNPC = 12,              -- Yards: so nah gilt "du stehst schon am NPC"
     hubRadius = 150,         -- Yards: Questgeber in diesem Umkreis gelten als ein Lager
     returnShare = 0.3,       -- Anteil des Rueckwegs, den eine offene Quest allein traegt
     returnRadius = 1200,     -- Yards: Ziele in diesem Umkreis eines Lagers = "du kommst eh vorbei"
@@ -93,6 +94,8 @@ local CONFIG = {
     waitFactor = 0.1,        -- Abgabe zurueckstellen, solange Ziele in der Naehe offen sind
     leaveMargin = 120,       -- Sekunden: so viel weiter weg als das Abgabe-Lager gilt als "Gebiet verlassen"
     leavePenalty = 0.05,     -- Abwertung fuer das Verlassen, solange Abgaben offen sind
+    groupBoost = 2,          -- Gruppenmodus: Quests, die ein Mitspieler auch hat, vorziehen
+    longCollect = 2700,      -- Sekunden: laengere Sammelquests (seltene Drops) nicht von selbst vorschlagen
     zoneStick = 0.1,         -- Abwertung fuer andere Gebiete, solange hier noch Arbeit ist
     clusterCell = 150,       -- Yards: Rastergroesse fuer die Dichte von Questzielen
     clusterOther = 0.7,      -- Gewicht von Zielen ANDERER Quests im selben Gebiet
@@ -242,8 +245,9 @@ local function Done(id)
     return false
 end
 P.Done = Done
+P.recentDone = {}
 function P.MarkDone(id)
-    if id then completed[id] = true; notDone[id] = nil end
+    if id then completed[id] = true; notDone[id] = nil; P.recentDone[id] = GetTime and GetTime() or 0 end
     if P.InvalidatePrep then P.InvalidatePrep() end
 end
 
@@ -1005,6 +1009,7 @@ local function NotAvailableReason(q, quick)
     return nil
 end
 
+P.NotAvailableReason = function(q) return NotAvailableReason(q) end   -- fuer Tests/Erklaerungen
 local function Available(q)
     return NotAvailableReason(q, true) == nil
 end
@@ -1013,6 +1018,7 @@ end
 -- Vorauswahl (Pool): einmal je Stufe, in kleinen Paketen ohne Ruckler
 ---------------------------------------------------------------------------
 local pool, poolLevel, poolBuilding = {}, nil, false
+P.Pool = function() return pool end   -- fuer Tests
 local unlocks, unlocksFor = {}, nil
 
 -- Rueckwaerts-Index aus den Vorquest-Angaben: unlocks[vorquest] = {folgequests}
@@ -1430,6 +1436,45 @@ end
 
 -- Ueberblick fuer das Dungeon-Fenster: Dungeons deiner Stufe mit ihren Quests
 -- (im Log / abholbar / Vorquest fehlt). Nutzt den Questpool der letzten Planung.
+-- Fuer das Dungeon-Fenster: wie QuestDungeonArea, aber auch Quests, die das
+-- Spiel unter einem Dungeon einsortiert (Questlog-Ueberschrift), deren Gegner
+-- in der Datenbank aber keine Fundorte haben - z. B. die Forever-Quests fuer
+-- "City of Dalaran".
+local function OverviewArea(q, a)
+    local area = QuestDungeonArea(a)
+    if not area and q.zoneOrSort and q.zoneOrSort > 0 and DB.Dungeon(q.zoneOrSort) then area = q.zoneOrSort end
+    return area
+end
+-- Gehoert diese Quest zum Dungeon, fuer den du im Dungeon-Fenster "Quests abholen"
+-- gedrueckt hast? Dann wird sie geplant - auch im Modus "Nur Quests".
+-- Lange Sammelquest: viel Arbeit (ueber CONFIG.longCollect Sekunden), und der
+-- groesste Teil davon steckt in seltenen Drops (unter 20 %) oder in Gegenstaenden
+-- ohne bekannten Fundort. Levelmate zeigt das an (c.longCollect = Minuten,
+-- c.longKills = Kills je Gegenstand); auslassen nur, wenn du das in den
+-- Einstellungen so willst. Klassen-, Story- und Dungeonquests ausgenommen.
+function P.LongCollect(c)
+    if not (c and c.a and c.q) then return false end
+    c.longCollect, c.longKills = nil, nil
+    if c.isDungeon or c.classQuest or c.classBoost or c.storyStarted then return false end
+    if (c.effort or 0) <= CONFIG.longCollect then return false end
+    local slow, kills = 0, nil
+    for _, t in ipairs(c.a.targets or {}) do
+        if t.kind == "item" and ((t.killsPerUnit or 0) >= 5 or #(t.points or {}) == 0) then
+            slow = slow + (t.effort or 0)
+            if t.killsPerUnit and (not kills or t.killsPerUnit > kills) then kills = t.killsPerUnit end
+        end
+    end
+    if slow < (c.a.effort or 0) * 0.5 then return false end
+    c.longCollect = math.floor(c.effort / 60 + 0.5)
+    c.longKills = kills and math.floor(kills + 0.5) or nil
+    return (Levelmate_DB and Levelmate_DB.skipLongCollect) and true or false
+end
+function P.IsFocusDungeonQuest(c)
+    local foc = Levelmate_CharDB and Levelmate_CharDB.dungeonFocus
+    if not (foc and c and c.q and c.a) then return false end
+    local area = OverviewArea(c.q, c.a)
+    return area and DB.SameDungeon(area, foc) or false
+end
 function P.DungeonOverview()
     local out, byName = {}, {}
     if not player.level or not DB.Available() then return out end
@@ -1453,7 +1498,7 @@ function P.DungeonOverview()
     local logged = {}
     for _, lq in ipairs(Levelmate.Quests.GetList() or {}) do
         local q = DB.Quest(lq.questID)
-        local area = q and QuestDungeonArea(Analyze(q))
+        local area = q and OverviewArea(q, Analyze(q))
         local e = area and Entry(area)
         if e then
             logged[q.id] = true
@@ -1466,11 +1511,14 @@ function P.DungeonOverview()
         local q = DB.Quest(id)
         if q and not logged[id] and not Done(id) and RaceClassOK(q) and not IsLibraryQuest(q) then
             local a = Analyze(q)
-            local area = QuestDungeonArea(a)
+            local area = OverviewArea(q, a)
             local e = area and Entry(area)
             if e then
                 local why = NotAvailableReason(q)
-                if not why and #a.givers > 0 and not a.itemStart then
+                if not why and (#a.givers == 0 or a.itemStart) then
+                    -- startet im Dungeon (Gegenstand/NPC drinnen): zaehlt zur Gesamtzahl
+                    e.inside = (e.inside or 0) + 1
+                elseif not why and #a.givers > 0 and not a.itemStart then
                     local g = here and Nearest(here, a.givers) or a.givers[1]
                     table.insert(e.available, { q = q, giver = (g and a.giverNameOf and a.giverNameOf[g]) or a.giverName,
                         map = g and g.map })
@@ -1483,8 +1531,11 @@ function P.DungeonOverview()
                     local sg = sa and (here and Nearest(here, sa.givers) or sa.givers[1])
                     table.insert(e.blocked, { q = q, why = why, chain = chain, start = start,
                         startMap = (start and inLog[start.id] and nil) or (sg and sg.map), startInLog = start and inLog[start.id] or nil })
-                elseif why and (why:find("^erst ab Stufe") or why:find("^Questlevel")
-                       or why:find("^Vorquest") or why:find("^erst ab Quest") or why:find("^Hauptquest")) then
+                elseif why and (why:find("^Vorquest") or why:find("^erst ab Quest") or why:find("^Hauptquest")) then
+                    -- Teil einer Questreihe, die du noch nicht so weit hast: zaehlt zur
+                    -- Gesamtzahl (sonst springt "4/4" spaeter auf "5/5")
+                    e.chainLater = (e.chainLater or 0) + 1
+                elseif why and (why:find("^erst ab Stufe") or why:find("^Questlevel")) then
                     -- gibt es, aber erst mit hoeherer Stufe
                     e.later = e.later + 1
                     local need = math.max(q.requiredLevel or 1, (q.questLevel or 1) - P.MaxLevelAbove())
@@ -1517,7 +1568,7 @@ function P.DungeonOverview()
         local foc = Levelmate_CharDB and Levelmate_CharDB.dungeonFocus
         e.focused = foc and DB.SameDungeon(foc, e.area) or false
         -- Vorbereitung wie im Dungeon Journal: x von y Quests im Log
-        e.have, e.total = #e.inLog, #e.inLog + #e.available + #e.blocked
+        e.have, e.total = #e.inLog, #e.inLog + #e.available + #e.blocked + (e.inside or 0) + (e.chainLater or 0)
         -- Story: zu welcher Geschichte gehoert der Dungeon?
         if P.StoryName then
             for _, l in ipairs({ e.inLog, e.available }) do
@@ -1852,7 +1903,51 @@ local function FocusPrep()
 end
 function P.InvalidatePrep() prepCache.t = -100 end
 
+-- Gruppenmodus: Quests, die ein Gruppenmitglied (mit Levelmate) auch hat, etwas
+-- vorziehen - gemeinsam erledigen statt auseinanderlaufen.
+local function GroupBoost(actions)
+    local Gr = Levelmate.Group
+    if not (Gr and Gr.Active and Gr.Active()) then return end
+    for _, act in ipairs(actions) do
+        if act.c and act.c.q and act.score ~= math.huge and act.kind ~= "ABANDON" then
+            local who = Gr.Who(act.c.q.id, act.kind == "DO")
+            if who then
+                act.groupWith = who
+                act.score = act.score * CONFIG.groupBoost
+                act.pen = (act.pen or "") .. " gruppe"
+            end
+        end
+    end
+end
+
+-- Annahmen direkt am NPC, bei dem du stehst: vor allem anderen (ausser
+-- Pflichtschritten wie Zeitquests oder "zuerst") - sonst laeuft man zum
+-- naechsten NPC und muss fuer die Folgequest wieder zurueck.
+-- Folgequest einer Quest, die du gerade (in den letzten 3 Minuten) abgegeben hast?
+function P.FollowUpOfRecent(q)
+    local now = GetTime and GetTime() or 0
+    local function Recent(id) local t = P.recentDone[id]; return t and now - t <= 300 end
+    for _, id in ipairs(q.preQuestSingle or {}) do if Recent(id) then return true end end
+    for _, id in ipairs(q.preQuestGroup or {}) do if Recent(id) then return true end end
+    return false
+end
+local function AtNPCFirst(actions)
+    local top = 0
+    for _, act in ipairs(actions) do
+        if act.score ~= math.huge and not act.atNPC and act.score > top then top = act.score end
+    end
+    for _, act in ipairs(actions) do
+        -- nur Annahmen, die der Planer ohnehin will (nicht absichtlich zurueckgestellte
+        -- wie Botengaenge in ferne Gebiete oder Quests fuer spaeter)
+        if act.atNPC and act.score ~= math.huge then
+            act.score = math.max(act.score, top * 1.01 + act.score * 1e-6)
+        end
+    end
+end
+
 EliteAreas = function(phase, a1, a2, a3, a4)
+    if phase == "atnpc" then return AtNPCFirst(a1) end
+    if phase == "group" then return GroupBoost(a1) end
     if phase == "unskip" then
         UnskipAreaPrereqs(a1, a2, a3)
         -- Vorquests der Dungeon-Vorbereitung nie als "lohnt sich nicht" auslassen
@@ -2103,11 +2198,11 @@ function P.Plan(modeKey, state)
         elseif c.live and c.live.status ~= Levelmate.Quests.STATUS_READY and ExclusiveDone(c.q.id) then
             -- Gegenstueck schon erledigt (z. B. Magram-Allianz abgegeben -> Gelkis-Allianz)
             skipReason = "schließt sich mit Quest " .. ExclusiveDone(c.q.id) .. " aus"
-        elseif c.isDungeon and not mode.dungeons then
+        elseif c.isDungeon and not mode.dungeons and not P.IsFocusDungeonQuest(c) then
             skipReason = "Dungeonquest (" .. (c.a.dungeonName or "Dungeon") .. ")"
-        elseif c.dungeonTag and not mode.dungeons then
+        elseif c.dungeonTag and not mode.dungeons and not P.IsFocusDungeonQuest(c) then
             skipReason = "Dungeonquest (" .. ((c.live and c.live.header) or "Dungeon") .. ")"
-        elseif c.a.elite and not mode.dungeons then
+        elseif c.a.elite and not mode.dungeons and not P.IsFocusDungeonQuest(c) then
             skipReason = "Elite-Gegner (Gruppe nötig)"
         elseif mode.story and not c.live and not fillerOK[c] and not IsStory(c) then
             skipReason = "Füllquest (Story-Modus)"
@@ -2116,6 +2211,8 @@ function P.Plan(modeKey, state)
             skipReason = "graue Geschichte übersprungen"
         elseif not c.live and TradeMissing(c) then
             skipReason = "braucht Gegenstand von " .. TradeMissing(c) .. " (Tausch/Beruf/Handel)"
+        elseif not c.live and P.LongCollect(c) then
+            skipReason = string.format("lange Sammelquest (≈%d min)", math.floor(c.effort / 60))
         elseif not c.isDungeon and ref > 0 and c.eff < ref * mode.threshold and not c.classBoost
                and not (c.classQuest and classOn)
                and not (mode.story and c.storyStarted)
@@ -2618,6 +2715,15 @@ function P.Plan(modeKey, state)
             end
         end
     end
+    -- Steht am aktuellen Ort (am NPC) noch eine Abgabe an? Dann zuerst die
+    -- (sie schaltet oft Folgequests frei). Sonst: Annahmen direkt hier vor
+    -- Abgaben woanders - nicht erst zum naechsten NPC und wieder zurueck.
+    local turninHere = false
+    for _, act in ipairs(actions) do
+        if act.kind == "TURNIN" and act.target and here and (Yards(here, act.target) or 1e9) <= CONFIG.atNPC then
+            turninHere = true; break
+        end
+    end
     for _, act in ipairs(actions) do
       if act.kind ~= "ABANDON" then
         act.score = (act.hubValue or act.value) / math.max(10, act.seconds)
@@ -2646,6 +2752,10 @@ function P.Plan(modeKey, state)
         elseif near and (act.kind == "ACCEPT" or (act.kind == "TURNIN" and not act.localWait)) then
             act.score = act.score * CONFIG.nearbyBoost
             if act.kind == "TURNIN" then act.score = act.score * 2 end  -- Abgabe vor Annahme (Folgequests)
+            if act.kind == "ACCEPT" and not turninHere and act.target and act.c
+               and (Yards(here, act.target) or 1e9) <= CONFIG.atNPC and P.FollowUpOfRecent(act.c.q) then
+                act.atNPC = true   -- du stehst schon am NPC: kommt gleich nach vorne (s. "atnpc")
+            end
         elseif act.kind == "TURNIN" and (act.waiting or 0) > 0 then
             act.score = act.score * CONFIG.waitFactor; act.pen = (act.pen or "") .. " warten"
         end
@@ -2711,11 +2821,11 @@ function P.Plan(modeKey, state)
                 if not lv or (player.level >= lv[1] - 1 and player.level <= lv[2]) then
                     act.score = act.score * CONFIG.dungeonAcceptBoost
                 end
-                local foc = Levelmate_CharDB and Levelmate_CharDB.dungeonFocus
-                if foc and DB.SameDungeon(area, foc) then
-                    act.score = act.score * CONFIG.dungeonFocusBoost; act.dungeonFocus = true
-                end
             end
+        end
+        -- "Quests abholen" im Dungeon-Fenster: diese Annahmen zuerst (in jedem Modus)
+        if act.kind == "ACCEPT" and act.c and act.score ~= math.huge and P.IsFocusDungeonQuest(act.c) then
+            act.score = act.score * CONFIG.dungeonFocusBoost; act.dungeonFocus = true
         end
         -- Story-Modus: angefangene Reihen weiterspielen, Reihen zum Dungeon bevorzugen,
         -- und der Dungeon am Ende einer Reihe ist das Finale (nicht aufschieben)
@@ -2807,6 +2917,8 @@ function P.Plan(modeKey, state)
         end
     end
     Mark("A-FokusZeit")
+    EliteAreas("atnpc", actions)
+    EliteAreas("group", actions)
     EliteAreas("focus", actions)
     EliteAreas("timed", actions)
     table.sort(actions, function(x, y) return x.score > y.score end)
@@ -2941,6 +3053,38 @@ function P.Plan(modeKey, state)
     local nowT = (time and time()) or 0
     local function TravelSkipped(key) return ts and key and ts[key] and ts[key] > nowT end
     P.TravelSkipped = TravelSkipped
+    -- Reiseziel festhalten: Wer gerade per Schiff/Flug/Ruhestein zu einem Ziel
+    -- unterwegs ist, soll dort auch ankommen. Sonst kann die Route pendeln
+    -- (Zeppelin hin und zurueck), weil sich die Bewertung mit dem Standort verschiebt.
+    local ownTravel = not state or state.sim
+    local tt = sticky.travelTo
+    local nowG = GetTime and GetTime() or 0
+    if tt and (not here or here.map == tt.map or nowG - tt.at > 1800) then
+        if ownTravel then sticky.travelTo = nil end
+        tt = nil
+    end
+    local function NeedsTransport(act)
+        if not (act and act.target and here) then return false end
+        local _, fa, _, hearth, leg = TravelSeconds(here, act.target)
+        return (fa or hearth or leg) and true or false
+    end
+    -- nur eingreifen, wenn der neue beste Schritt selbst wieder Schiff/Flug/Ruhestein
+    -- braeuchte (das waere das Pendeln) - zu Fuss Erreichbares darf vorgehen
+    if tt and top and top.score ~= math.huge and ActionKey(top) ~= tt.key
+       and not (P.forceQuest and top.c and top.c.q and top.c.q.id == P.forceQuest)
+       and NeedsTransport(top) then
+        local found
+        for i, act in ipairs(actions) do
+            if ActionKey(act) == tt.key then found = i; break end
+        end
+        if found then
+            local act = table.remove(actions, found)
+            table.insert(actions, 1, act)
+            top = act
+        elseif ownTravel then
+            sticky.travelTo = nil
+        end
+    end
     if top and top.target and here then
         local tTop, fa, fb, hearth, leg = TravelSeconds(here, top.target)
         if hearth and TravelSkipped("HEARTH") then hearth = nil end
@@ -2981,6 +3125,10 @@ function P.Plan(modeKey, state)
                 seconds = TravelSeconds(here, fa.point), stepSeconds = TravelSeconds(here, fa.point) + flight,
                 score = math.huge, xpPerMin = top.xpPerMin })
         end
+    end
+    if ownTravel and actions[1] and actions[1] ~= top and top and top.target
+       and (actions[1].kind == "SHIP" or actions[1].kind == "FLY" or actions[1].kind == "HEARTH") then
+        sticky.travelTo = { key = ActionKey(top), map = top.target.map, at = nowG }
     end
     result.here = here
     if measure then

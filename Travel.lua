@@ -1246,6 +1246,8 @@ local function Channel()
     return "PARTY"
 end
 local function Queue(msg) if InGroup() then outQueue[#outQueue + 1] = msg end end
+-- Gruppenmodus: kurze Statusmeldungen vor den Wegen senden
+function T.QueueFront(msg) if InGroup() then table.insert(outQueue, 1, msg) end end
 
 local function GateMsg(m1, m2, g)
     local p1, p2 = g.pts and g.pts[tostring(m1)], g.pts and g.pts[tostring(m2)]
@@ -1283,6 +1285,8 @@ end
 T.shared = { gates = 0, cells = 0 }
 local function OnMessage(msg, sender)
     local kind = msg:sub(1, 1)
+    -- Gruppenmodus (Group.lua): Questlogs abgleichen
+    if Levelmate.Group and Levelmate.Group.OnMessage and Levelmate.Group.OnMessage(kind, msg, sender) then return end
     if kind == "G" then
         local m1, m2, cont, wx, wy, x1, y1, x2, y2 = msg:match("^G|(%d+)|(%d+)|(%d+)|([%-%d%.]+)|([%-%d%.]+)|([%d%.]+)|([%d%.]+)|([%d%.]+)|([%d%.]+)$")
         if m1 then
