@@ -1,4 +1,4 @@
-Levelmate 1.0.0 – Leveling assistant for WoW Forever
+Levelmate 1.1.0 – Leveling assistant for WoW Forever
 ====================================================
 
 Levelmate plans the most efficient quest route from level 1 to 60: which
@@ -25,6 +25,11 @@ The window
   a quest from the route for good. The arrow brings the last step back right
   away, /lm skipped clear brings all back.
 - "Next steps" and "Quest log" can be folded open/closed with a click.
+- The minus button next to the title collapses the window to the current step,
+  the lock protects all Levelmate windows against moving and resizing.
+- Dungeon window (key icon): dungeons for your level with their quests
+  ("First" puts a quest at the top of your route, "Map" shows where it starts),
+  bosses and the loot you got from them.
 - Class trainer: becomes a step when you can learn new spells and the
   trainer is nearby or you are in their capital city.
 
@@ -55,6 +60,9 @@ Right-click the arrow: straight to the target / follow the path again
 /lm import     add paths from such a text
 /lm smart      measured XP per minute
 /lm group      group mode: which group members (with Levelmate) share your quests
+/lm group window  small window with your group members, level and shared quests
+/lm session    time, quests and XP of this and your last session
+/lm tips       show the introduction again
 /lm perf       addon processing time
 /lm first <quest>  put a quest from your log first (/lm first: normal order)
 /lm ascent     record a way up (ramp/lift/bridge): start at the bottom, again at the top

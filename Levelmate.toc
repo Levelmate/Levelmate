@@ -3,7 +3,7 @@
 ## Notes: Leveling assistant for WoW Forever: plans the most efficient quest route (level 1-60).
 ## Notes-deDE: Leveling-Assistent für WoW Forever: plant die effizienteste Questroute (Stufe 1–60).
 ## Author: Chris
-## Version: 1.0.8
+## Version: 1.1.0
 ## IconTexture: Interface\AddOns\Levelmate\Media\Logo
 ## OptionalDeps: QuestieDB, TomTom, WhatsTraining
 ## SavedVariables: Levelmate_DB
@@ -22,6 +22,9 @@ TrainerData.lua
 Seed.lua
 Trainer.lua
 Core.lua
+DungeonData.lua
+DungeonUI.lua
+Extras.lua
 Minimap.lua
 Options.lua
 Export.lua

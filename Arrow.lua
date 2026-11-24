@@ -184,7 +184,7 @@ end)
 -- bekannter Weg) zum aktuellen Ziel, danach gestrichelt die naechsten Schritte.
 -- Ein/aus: /lm karte
 -- ---------------------------------------------------------------------------
-local MAX_STEPS = 4
+local MAX_STEPS = 8
 A.steps = {}          -- {target, name} der naechsten Schritte (setzt Core)
 function A.SetSteps(list) A.steps = list or {} end
 
@@ -228,9 +228,16 @@ local function GetMark()
     local m = marks[markN]
     if not m then
         m = CreateFrame("Frame", nil, mapOv)
-        m:SetSize(18, 18)
-        m.bg = m:CreateTexture(nil, "OVERLAY"); m.bg:SetAllPoints(); m.bg:SetColorTexture(0.05, 0.05, 0.1, 0.85)
-        m.txt = m:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall"); m.txt:SetPoint("CENTER")
+        m:SetSize(20, 20)
+        -- runde Marke mit goldenem Rand, Nummer in der Mitte
+        m.ring = m:CreateTexture(nil, "OVERLAY", nil, 1); m.ring:SetAllPoints()
+        m.ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+        m.ring:SetTexCoord(0, 0.6, 0, 0.6)
+        m.bg = m:CreateTexture(nil, "OVERLAY", nil, 0); m.bg:SetPoint("CENTER"); m.bg:SetSize(14, 14)
+        m.bg:SetTexture("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+        m.bg:SetVertexColor(0.05, 0.05, 0.12, 0.95)
+        m.txt = m:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall"); m.txt:SetPoint("CENTER", 0, 0)
+        m.txt:SetDrawLayer("OVERLAY", 2)
         marks[markN] = m
     end
     m:Show()

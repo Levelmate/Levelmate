@@ -1,4 +1,4 @@
-Levelmate 1.0.0 – Leveling-Assistent für WoW Forever
+Levelmate 1.1.0 – Leveling-Assistent für WoW Forever
 =====================================================
 
 Levelmate plant für dich die effizienteste Questroute von Stufe 1 bis 60:
@@ -57,6 +57,9 @@ Rechtsklick auf den Pfeil: direkt zum Ziel / wieder dem Weg folgen
 /lm import     Wege aus so einem Text übernehmen
 /lm smart      gemessene XP pro Minute
 /lm gruppe     Gruppenmodus: welche Mitspieler (mit Levelmate) deine Quests auch haben
+/lm gruppe fenster  kleines Fenster mit Mitspielern, Stufe und gemeinsamen Quests
+/lm sitzung    Spielzeit, Quests und XP dieser und der letzten Sitzung
+/lm tipps      Einführung nochmal zeigen
 /lm leistung   Rechenzeit des Addons
 /lm zuerst <Quest>  Quest aus dem Questlog an erste Stelle (/lm zuerst: normale Reihenfolge)
 /lm aufgang    Aufgang aufzeichnen (Rampe/Aufzug/Brücke): unten starten, oben nochmal

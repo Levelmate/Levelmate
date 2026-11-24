@@ -1,3 +1,76 @@
+Levelmate 1.1.0
+===============
+
+Neu: Dungeon-Fenster
+- Komplett neu, im Stil eines Dungeon-Journals: links die Dungeons (passend zu deiner Stufe
+  oder alle) mit Stufe und Stand ("3 offen", "bereit", "alle erledigt"), rechts die Details
+  mit drei Reitern.
+- Übersicht: die Quests des Dungeons nach "Im Questlog", "Abholen", "Vorquest fehlt",
+  "Starten im Dungeon" und "Erledigt". Gleichnamige Varianten und wiederholbare Abgaben
+  (z. B. "Der Funkelmat 5200!") erscheinen nur einmal. Gezählt wird, was du jetzt bekommen
+  kannst ("1 von 4 möglichen Quests im Log").
+- "Zuerst" bei jeder Quest setzt sie als nächsten Schritt in die Route (bei fehlender Vorquest
+  die Anfangsquest der Reihe). Nach dem Annehmen geht die Route normal weiter; "Aufheben"
+  stellt die normale Reihenfolge wieder her. Ersetzt den alten Knopf "Quests abholen".
+- "Karte" öffnet die Weltkarte beim Questgeber bzw. beim Anfang der Vorquest und setzt eine
+  Wegmarke. Beginnt die Reihe im Dungeon (Questgeber oder Gegenstand dort), zeigt Levelmate
+  das Dungeon-Symbol und markiert den Eingang.
+- Bosse: alle klassischen Dungeons mit Bossen in Reihenfolge, Stufe, Flügel und der Quest,
+  die den Boss braucht.
+- Beute: Levelmate merkt sich, was bei dir von den Bossen fällt (grün und besser), mit Symbol
+  und Tooltip. Die Liste wächst mit jedem Lauf.
+- Levelmate zählt, wie oft du einen Dungeon gelaufen bist, und springt beim Betreten direkt
+  auf dessen Seite.
+
+Neu: Oberfläche
+- Neues Einstellungsfenster: Seitenleiste (Allgemein, Route, Anzeige, Gruppe), Einstellungen
+  in Kästen mit An/Aus-Schaltern, Erklärungen beim Drüberfahren. Neu: Hintergrund-Transparenz.
+- Regler "Gefährliches Gebiet ab" und "Quests annehmen bis" gelten erst nach "Übernehmen"
+  (oder beim Schließen) - kein Ruckeln mehr beim Ziehen.
+- Modus-Auswahl im neuen Design: aktueller Modus markiert, X und ESC schließen ohne Änderung.
+- Schritt-Karte: ein Fortschrittsbalken je Questziel (erledigte Ziele grün), ohne doppelte
+  Textzeile. "Gleichzeitig hier:" nennt weitere offene Quests im selben Gebiet. Weitere Ziele
+  derselben Quest stehen nicht mehr zusätzlich unter "Nächste Schritte".
+- "Nächste Schritte" nach Gebiet geordnet, mit Symbolen und Zeit pro Schritt (alte Liste:
+  Optionen > Anzeige).
+- Kompakt-Knopf (Minus oben): nur die Karte mit dem aktuellen Schritt.
+- Schloss oben: sperrt Levelmate- und Dungeon-Fenster gegen Verschieben und Größe ändern.
+- Weltkarte: die nächsten bis zu 8 Schritte als nummerierte runde Punkte.
+- NPC-Tooltip: "Levelmate: Schritt 2 - <Quest> abgeben", wenn der NPC in deiner Route vorkommt,
+  "<Quest> wird hier abgegeben (13/25)" für Quests aus deinem Log, die bei ihm enden, und bei
+  Gegnern "Levelmate: für <Quest> (3/10)", wenn du sie (oder ihren Drop) für eine Quest brauchst.
+- Meldung beim Stufenaufstieg: neue Fähigkeiten beim Lehrer, passende Gebiete, nächster Schritt.
+- Rückblick beim Einloggen: Spielzeit, Quests, XP und XP pro Stunde der letzten Sitzung
+  (/lm sitzung). /reload zählt nicht als neue Sitzung.
+- Gruppenfenster (/lm gruppe fenster oder Optionen > Gruppe): Mitspieler mit Levelmate, Stufe
+  und gemeinsame Quests.
+- Kurze Einführung beim ersten Start (nur für neue Nutzer; wieder anzeigen: /lm tipps).
+
+Verbessert / behoben
+- Hexenmeister und Paladine mit Klassenreittier bekommen keinen Hinweis "reiten lernen" mehr;
+  Levelmate erkennt das Klassenreittier (und jedes Reittier, auf dem du schon gesessen hast)
+  als Reitfertigkeit und plant mit Reittier-Tempo. "Teufelsross beschwören" bzw. "Das Ross
+  eines Paladins" und die Forever-Reitquests werden nicht mehr vorgeschlagen, wenn du das
+  Reittier schon hast bzw. schon reiten kannst.
+- "Später" und "Überspringen" funktionieren jetzt auch bei einer Quest, die du mit /lm zuerst
+  (oder "Zuerst" im Dungeon-Fenster) nach vorne geholt hast - die Wahl wird dabei aufgehoben.
+- Von dir gewählte Quests ("Zuerst", "Jetzt hin") werden nicht mehr von einer Annahme "auf dem
+  Weg" oder vom Festhalten am vorigen Schritt verdrängt.
+
+English summary
+- New dungeon window (dungeon-journal style): dungeon list, Overview / Bosses / Loot tabs,
+  "First" puts a quest at the top of your route, "Map" shows where a quest or prerequisite
+  chain starts (dungeon entrance if it starts inside), boss lists for all classic dungeons,
+  loot you looted from bosses is remembered, run counter.
+- New settings window with sidebar and switches, new mode selection, sliders that replan only
+  after "Apply".
+- Step card: one progress bar per objective, "Also here" for nearby quests; next steps grouped
+  by zone; compact mode; window lock; numbered steps on the world map; NPC tooltip (route steps, quests
+  you turn in there, and enemies you need for a quest);
+  level-up notice; session recap; group window; intro for new users.
+- Fixes: warlock/paladin class mounts count as riding; Later/Skip now work on a quest chosen
+  with /lm first; chosen quests are no longer pushed back by on-the-way pickups.
+
 Levelmate 1.0.8
 ===============
 

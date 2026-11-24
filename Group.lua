@@ -43,6 +43,7 @@ local function Encode()
 end
 
 function G.Broadcast()
+    if Levelmate_DB and Levelmate_DB.groupOff then return end
     local T = Levelmate.Travel
     if not (InGroup() and T and T.QueueFront) then return end
     stamp = (stamp % 999) + 1
@@ -125,6 +126,7 @@ end
 -- Namen der Gruppenmitglieder (mit Levelmate), die diese Quest im Log haben.
 -- open = true: nur, wenn sie bei ihnen noch nicht fertig ist.
 function G.Who(questID, open)
+    if Levelmate_DB and Levelmate_DB.groupOff then return nil end
     local out
     for name, m in pairs(G.members) do
         local q = m.quests and m.quests[questID]
@@ -138,6 +140,7 @@ function G.Who(questID, open)
 end
 
 function G.Active()
+    if Levelmate_DB and Levelmate_DB.groupOff then return false end
     for _ in pairs(G.members) do return true end
     return false
 end

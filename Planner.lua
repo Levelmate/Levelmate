@@ -304,6 +304,24 @@ P.Yards = Yards
 -- Reisetempo: echtes Reittier-Tempo, sobald du einmal aufgesessen bist (wird
 -- gemessen und gemerkt); sonst Reitfertigkeit erkannt -> normales Reittier;
 -- sonst zu Fuss.
+-- Klassenreittier bekannt? (Hexenmeister: Teufelsross/Schreckensross, Paladin:
+-- Schlachtross/Streitross) - per Zauber-ID und notfalls per Name im Zauberbuch
+local CLASS_MOUNT_IDS = { 5784, 23161, 13819, 23214 }
+local CLASS_MOUNT_NAMES = { "Teufelsross beschwören", "Summon Felsteed", "Schreckensross beschwören",
+    "Summon Dreadsteed", "Schlachtross beschwören", "Summon Warhorse", "Streitross beschwören", "Summon Charger" }
+function P.HasClassMount()
+    for _, id in ipairs(CLASS_MOUNT_IDS) do
+        if (IsPlayerSpell and Levelmate.Flag(IsPlayerSpell, false, id))
+           or (IsSpellKnown and Levelmate.Flag(IsSpellKnown, false, id)) then return true end
+    end
+    if GetSpellInfo then
+        for _, n in ipairs(CLASS_MOUNT_NAMES) do
+            local ok, name = pcall(GetSpellInfo, n)
+            if ok and name then return true end
+        end
+    end
+    return false
+end
 local ridingCache, ridingCheckedAt = nil, -1
 local function HasRidingSkill()
     local now = GetTime and GetTime() or 0
@@ -319,6 +337,14 @@ local function HasRidingSkill()
     if not found and C_MountJournal and C_MountJournal.GetNumMounts then
         local ok, n = pcall(C_MountJournal.GetNumMounts)
         if ok and (n or 0) > 0 then found = true end
+    end
+    -- Klassenreittiere (Hexenmeister: Teufelsross/Schreckensross, Paladin:
+    -- Schlachtross/Streitross) - die bringen das Reiten selbst mit
+    if not found then found = P.HasClassMount() end
+    -- schon einmal beritten gemessen oder gerade auf dem Reittier
+    if not found then
+        local m = Levelmate_CharDB and Levelmate_CharDB.mount
+        if (m and m.speed and m.speed > CONFIG.speedLow) or Levelmate.Flag(IsMounted, false) then found = true end
     end
     ridingCache = found
     return found
@@ -1475,7 +1501,7 @@ function P.IsFocusDungeonQuest(c)
     local area = OverviewArea(c.q, c.a)
     return area and DB.SameDungeon(area, foc) or false
 end
-function P.DungeonOverview()
+function P.DungeonOverview(all)
     local out, byName = {}, {}
     if not player.level or not DB.Available() then return out end
     local function Entry(area)
@@ -1488,7 +1514,7 @@ function P.DungeonOverview()
             local lv = DungeonLevels(name)
             e = { name = name, area = area, entrance = entrance, min = lv and lv[1], max = lv and lv[2],
                   wings = DUNGEON_WINGS[DB.DungeonEnglish(name):upper()],
-                  inLog = {}, available = {}, blocked = {}, later = 0, xp = 0 }
+                  inLog = {}, available = {}, blocked = {}, done = {}, later = 0, xp = 0 }
             byName[name] = e
             out[#out + 1] = e
         end
@@ -1509,7 +1535,12 @@ function P.DungeonOverview()
     local here = P.PlayerPoint and P.PlayerPoint()
     for _, id in ipairs(pool) do
         local q = DB.Quest(id)
-        if q and not logged[id] and not Done(id) and RaceClassOK(q) and not IsLibraryQuest(q) then
+        if q and not logged[id] and Done(id) and RaceClassOK(q) and not IsLibraryQuest(q) then
+            -- schon erledigt: nur fuer die Anzeige (Haken im Dungeon-Fenster)
+            local area = OverviewArea(q, Analyze(q))
+            local e = area and Entry(area)
+            if e then table.insert(e.done, { q = q }) end
+        elseif q and not logged[id] and not Done(id) and RaceClassOK(q) and not IsLibraryQuest(q) then
             local a = Analyze(q)
             local area = OverviewArea(q, a)
             local e = area and Entry(area)
@@ -1518,10 +1549,12 @@ function P.DungeonOverview()
                 if not why and (#a.givers == 0 or a.itemStart) then
                     -- startet im Dungeon (Gegenstand/NPC drinnen): zaehlt zur Gesamtzahl
                     e.inside = (e.inside or 0) + 1
+                    e.insideList = e.insideList or {}
+                    table.insert(e.insideList, { q = q })
                 elseif not why and #a.givers > 0 and not a.itemStart then
                     local g = here and Nearest(here, a.givers) or a.givers[1]
                     table.insert(e.available, { q = q, giver = (g and a.giverNameOf and a.giverNameOf[g]) or a.giverName,
-                        map = g and g.map })
+                        map = g and g.map, point = g })
                     e.xp = e.xp + QuestXP(q)
                 elseif why and (q.questLevel or 0) <= player.level + 4
                        and (why:find("^Vorquest") or why:find("^erst ab Quest") or why:find("^Hauptquest")) then
@@ -1530,7 +1563,9 @@ function P.DungeonOverview()
                     local sa = start and Analyze(start)
                     local sg = sa and (here and Nearest(here, sa.givers) or sa.givers[1])
                     table.insert(e.blocked, { q = q, why = why, chain = chain, start = start,
-                        startMap = (start and inLog[start.id] and nil) or (sg and sg.map), startInLog = start and inLog[start.id] or nil })
+                        startMap = (start and inLog[start.id] and nil) or (sg and sg.map), startInLog = start and inLog[start.id] or nil,
+                        startPoint = sg, startItem = sa and sa.itemStart and true or nil,
+                        startGiver = sg and ((sa.giverNameOf and sa.giverNameOf[sg]) or sa.giverName) or nil })
                 elseif why and (why:find("^Vorquest") or why:find("^erst ab Quest") or why:find("^Hauptquest")) then
                     -- Teil einer Questreihe, die du noch nicht so weit hast: zaehlt zur
                     -- Gesamtzahl (sonst springt "4/4" spaeter auf "5/5")
@@ -1542,6 +1577,13 @@ function P.DungeonOverview()
                     if not e.laterLevel or need < e.laterLevel then e.laterLevel = need end
                 end
             end
+        end
+    end
+    -- Alle Dungeons zeigen: auch die ohne Quests in Reichweite
+    if all and DB.AllDungeonAreas then
+        for _, area in ipairs(DB.AllDungeonAreas()) do
+            local name = DB.Dungeon(area)
+            if name and DungeonLevels(name) then Entry(area) end
         end
     end
     -- Bewertung: passend fuer deine Stufe?
@@ -1579,7 +1621,11 @@ function P.DungeonOverview()
     -- Nur Dungeons um deine Stufe (oder mit Quests im Log)
     local list = {}
     for _, e in ipairs(out) do
-        if #e.inLog > 0 or (lvl >= e.min - 2 and lvl <= e.max) then list[#list + 1] = e end
+        if all or #e.inLog > 0 or (lvl >= e.min - 2 and lvl <= e.max) then list[#list + 1] = e end
+    end
+    if all then
+        table.sort(list, function(x, y) if x.min ~= y.min then return x.min < y.min end return x.name < y.name end)
+        return list
     end
     local rank = { ideal = 1, soon = 2, low = 3, grey = 4 }
     table.sort(list, function(x, y)
@@ -1596,6 +1642,7 @@ function P.SetDungeonFocus(area)
     if area and Levelmate_CharDB.dungeonFocus and DB.SameDungeon(area, Levelmate_CharDB.dungeonFocus) then area = nil end
     Levelmate_CharDB.dungeonFocus = area
     sticky.committed = nil          -- neue Wahl: nicht am alten Schritt festhalten
+    sticky.travelTo = nil
     if P.InvalidatePrep then P.InvalidatePrep() end
     return area
 end
@@ -1608,6 +1655,7 @@ function P.SetDungeonGo(area)
     end
     Levelmate_CharDB.dungeonGo = { area = area, t = time and time() or 0 }
     sticky.committed = nil
+    sticky.travelTo = nil
     return area
 end
 local function DungeonGoArea()
@@ -1923,6 +1971,39 @@ end
 -- Annahmen direkt am NPC, bei dem du stehst: vor allem anderen (ausser
 -- Pflichtschritten wie Zeitquests oder "zuerst") - sonst laeuft man zum
 -- naechsten NPC und muss fuer die Folgequest wieder zurueck.
+-- Klassenreittier-Quests (Hexenmeister: "Teufelsross beschwören", Paladin: "Das Ross
+-- eines Paladins"): nicht mehr vorschlagen, wenn du das Reittier schon hast (auf WoW
+-- Forever z. B. beim Lehrer gekauft).
+local MOUNT_QUESTS = { [3631] = true, [4487] = true, [4488] = true, [4489] = true, [4490] = true,
+                       [94971] = true }
+-- WoW-Forever-Reitquests ("Reiten lernen", "Euer erster Reitwolf" usw.): ueberfluessig,
+-- wenn du schon reiten kannst oder ein Klassenreittier hast
+local RIDING_QUESTS = { [97018] = true, [97074] = true, [97170] = true, [97188] = true, [97194] = true,
+    [97200] = true, [97203] = true, [97204] = true, [97205] = true, [95511] = true, [96982] = true,
+    [96989] = true, [96994] = true, [96996] = true, [97017] = true, [97045] = true, [97046] = true,
+    [98166] = true }
+-- Sicher reiten koennen (fuer das Auslassen von Quests): Klassenreittier, Reiten in
+-- den Fertigkeiten oder schon einmal beritten gemessen. Die Reittier-Sammlung zaehlt
+-- hier nicht (die kann je nach Spielversion auch nicht gelernte Reittiere melden).
+function P.CanRideSure()
+    if P.HasClassMount() then return true end
+    local m = Levelmate_CharDB and Levelmate_CharDB.mount
+    if m and m.speed and m.speed > CONFIG.speedLow then return true end
+    if GetNumSkillLines and GetSkillLineInfo then
+        local okN, n = pcall(GetNumSkillLines)
+        for i = 1, (okN and type(n) == "number") and n or 0 do
+            local ok, name = pcall(GetSkillLineInfo, i)
+            if ok and type(name) == "string" and (name:find("Riding") or name:find("Reiten")) then return true end
+        end
+    end
+    return false
+end
+function P.MountQuestDone(id)
+    if (MOUNT_QUESTS[id] or RIDING_QUESTS[id]) and P.CanRideSure() then
+        return MOUNT_QUESTS[id] and "Klassenreittier schon gelernt" or "Reiten schon gelernt"
+    end
+    return false
+end
 -- Folgequest einer Quest, die du gerade (in den letzten 3 Minuten) abgegeben hast?
 function P.FollowUpOfRecent(q)
     local now = GetTime and GetTime() or 0
@@ -2005,7 +2086,8 @@ EliteAreas = function(phase, a1, a2, a3, a4)
         if not set then return end
         for _, act in ipairs(a1) do
             if act.c and act.c.q and set[act.c.q.id] and act.kind ~= "ABANDON" and act.score ~= math.huge then
-                act.score = act.score * CONFIG.dungeonFocusBoost
+                -- Ausdruecklicher Wunsch: als Naechstes (vor allem anderen, ausser "Jetzt hin")
+                act.score = 1e6 + act.score
                 act.dungeonPrep = name
                 act.pen = (act.pen or "") .. " dungeon-vorbereitung"
             end
@@ -2211,6 +2293,8 @@ function P.Plan(modeKey, state)
             skipReason = "graue Geschichte übersprungen"
         elseif not c.live and TradeMissing(c) then
             skipReason = "braucht Gegenstand von " .. TradeMissing(c) .. " (Tausch/Beruf/Handel)"
+        elseif not c.live and P.MountQuestDone(c.q.id) then
+            skipReason = P.MountQuestDone(c.q.id)
         elseif not c.live and P.LongCollect(c) then
             skipReason = string.format("lange Sammelquest (≈%d min)", math.floor(c.effort / 60))
         elseif not c.isDungeon and ref > 0 and c.eff < ref * mode.threshold and not c.classBoost
@@ -2225,7 +2309,8 @@ function P.Plan(modeKey, state)
                 skipReason = string.format("lohnt sich nicht (≈%d XP/min, Ø %d)", math.floor(c.xpPerMin), math.floor(ref * 60))
             end
         end
-        if P.forceQuest and c.q.id == P.forceQuest and c.live then skipReason = nil end
+        -- Von dir gewaehlt (/lm zuerst oder "Zuerst" im Dungeon-Fenster): nie auslassen
+        if P.forceQuest and c.q.id == P.forceQuest then skipReason = nil end
         c.skipReason = skipReason
         if skipReason then
             if c.live then table.insert(result.skipped, c) end
@@ -2825,7 +2910,7 @@ function P.Plan(modeKey, state)
         end
         -- "Quests abholen" im Dungeon-Fenster: diese Annahmen zuerst (in jedem Modus)
         if act.kind == "ACCEPT" and act.c and act.score ~= math.huge and P.IsFocusDungeonQuest(act.c) then
-            act.score = act.score * CONFIG.dungeonFocusBoost; act.dungeonFocus = true
+            act.score = 1e6 + act.score; act.dungeonFocus = true
         end
         -- Story-Modus: angefangene Reihen weiterspielen, Reihen zum Dungeon bevorzugen,
         -- und der Dungeon am Ende einer Reihe ist das Finale (nicht aufschieben)
@@ -2960,8 +3045,11 @@ function P.Plan(modeKey, state)
                 local x = actions[i]
                 -- Kurze Wege (< 90 s): nur Abgaben einschieben (fertige Quest direkt
                 -- daneben), keine neuen Annahmen - die verlaengern sonst die Route.
+                -- Ausdruecklicher Wunsch (Dungeon-Fenster): keine fremden Annahmen davor
+                local wish = first.dungeonFocus or first.dungeonPrep or first.goNow
                 local ok = (x.kind == "TURNIN")
-                    or (x.kind == "ACCEPT" and x.c and not x.c.skipReason and tFirst > 90)
+                    or (x.kind == "ACCEPT" and x.c and not x.c.skipReason and tFirst > 90
+                        and (not wish or x.dungeonFocus or x.dungeonPrep))
                 if ok and x.target and x.score ~= 0 then
                     local t1 = TravelSeconds(here, x.target)
                     if t1 < tFirst then
@@ -3072,6 +3160,7 @@ function P.Plan(modeKey, state)
     -- braeuchte (das waere das Pendeln) - zu Fuss Erreichbares darf vorgehen
     if tt and top and top.score ~= math.huge and ActionKey(top) ~= tt.key
        and not (P.forceQuest and top.c and top.c.q and top.c.q.id == P.forceQuest)
+       and not (top.dungeonFocus or top.dungeonPrep or top.goNow)
        and NeedsTransport(top) then
         local found
         for i, act in ipairs(actions) do

@@ -75,6 +75,15 @@ function DB.SameDungeon(a, b)
     return dungeons[a] ~= nil and dungeons[a] == dungeons[b]
 end
 
+-- Alle bekannten Dungeon-Area-IDs (Haupteintraege)
+function DB.AllDungeonAreas()
+    ZoneTables()
+    local out = {}
+    for id in pairs(dungeons) do out[#out + 1] = id end
+    table.sort(out)
+    return out
+end
+
 function DB.AreaToUiMap(areaId)
     ZoneTables()
     local m = areaToMap[areaId]
