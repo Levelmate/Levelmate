@@ -35,6 +35,16 @@ Das Fenster
 - Klassenlehrer: Erscheint als Schritt, wenn du neue Zauber lernen kannst
   und der Lehrer in der Nähe ist oder du in seiner Hauptstadt bist.
 
+Helfer (Einstellungen → Komfort)
+- Beste Questbelohnung: ein goldener Rahmen markiert die beste Belohnung für
+  deine Klasse (nutzt GearQuest Forever, falls installiert).
+- Questgegner bekommen an der Namensplakette ein Symbol mit Fortschritt (z. B. 3/8).
+- Quest-Gegenstände in den Taschen: Haken = gebraucht, ! = startet eine Quest,
+  ? = Quest noch offen, X = kann weg (Blizzard-Taschen und Baganator).
+- Gasthaus-Tipp, wenn du außerhalb eines Gasthauses ausloggst.
+- Optional (standardmäßig aus): Route-Quests automatisch annehmen, fertige Quests
+  abgeben, graue Gegenstände verkaufen, reparieren. Shift halten = einmal nicht.
+
 Sprache
 - Im Zahnrad-Fenster unter "Sprache": Automatisch (Spielsprache), Deutsch
   oder English. Quest-, NPC- und Gebietsnamen kommen immer in der Sprache
@@ -65,6 +75,7 @@ Rechtsklick auf den Pfeil: direkt zum Ziel / wieder dem Weg folgen
 /lm gruppe     Gruppenmodus: welche Mitspieler (mit Levelmate) deine Quests auch haben
 /lm gruppe fenster  kleines Fenster mit Mitspielern, Stufe und gemeinsamen Quests
 /lm sitzung    Spielzeit, Quests und XP dieser und der letzten Sitzung
+/lm taschen    Quest-Gegenstände, die du nicht mehr brauchst
 /lm tipps      Einführung nochmal zeigen
 /lm leistung   Rechenzeit des Addons
 /lm zuerst <Quest>  Quest aus dem Questlog an erste Stelle (/lm zuerst: normale Reihenfolge)

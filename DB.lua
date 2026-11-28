@@ -279,6 +279,61 @@ function DB.ItemRewardQuests(itemId)
     return out
 end
 
+-- Quests, zu denen ein Gegenstand gehoert (Ziel, benoetigt, ...) und die Quest,
+-- die er startet. known = false: Gegenstand steht nicht in QuestieDB.
+-- Umgekehrter Index Gegenstand -> Quests (Ziele, benoetigte Gegenstaende,
+-- Startgegenstand), einmal im Hintergrund aus QuestieDB gebaut. QuestieDB selbst
+-- fuehrt "relatedQuests" nur fuer einen kleinen Teil der Quest-Gegenstaende.
+local itemIndex, itemIndexBuilding
+function DB.ItemIndexReady() return itemIndex ~= nil end
+function DB.BuildItemIndex(onDone)
+    if itemIndex then if onDone then onDone() end return end
+    if itemIndexBuilding or not QuestDB then return end
+    itemIndexBuilding = true
+    local ids = Call(QuestDB.GetAllIds) or {}
+    local idx, i = {}, 1
+    local function Add(item, q)
+        if type(item) ~= "number" or item <= 0 then return end
+        local t = idx[item]
+        if not t then t = {}; idx[item] = t end
+        t[#t + 1] = q
+    end
+    local function Step()
+        local stop = math.min(#ids, i + 300)
+        for k = i, stop do
+            local q = ids[k]
+            local o = QuestDB.objectives and Call(QuestDB.objectives, q)
+            for _, e in ipairs(type(o) == "table" and o[3] or {}) do Add(type(e) == "table" and e[1] or e, q) end
+            local rs = QuestDB.requiredSourceItems and Call(QuestDB.requiredSourceItems, q)
+            for _, it in ipairs(type(rs) == "table" and rs or {}) do Add(it, q) end
+            Add(QuestDB.sourceItemId and Call(QuestDB.sourceItemId, q), q)
+        end
+        i = stop + 1
+        if i <= #ids then
+            if C_Timer and C_Timer.After then C_Timer.After(0, Step) else Step() end
+        else
+            itemIndex, itemIndexBuilding = idx, false
+            if onDone then onDone() end
+        end
+    end
+    Step()
+end
+
+function DB.ItemQuests(itemId)
+    if not (ItemDB and ItemDB.Exists and Call(ItemDB.Exists, itemId)) then return {}, nil, false end
+    local rel = ItemDB.relatedQuests and Call(ItemDB.relatedQuests, itemId)
+    local out, seen = {}, {}
+    if type(rel) == "table" then
+        for _, id in ipairs(rel) do if type(id) == "number" and id > 0 and not seen[id] then seen[id] = true; out[#out + 1] = id end end
+    end
+    for _, id in ipairs(itemIndex and itemIndex[itemId] or {}) do
+        if not seen[id] then seen[id] = true; out[#out + 1] = id end
+    end
+    local start = ItemDB.startQuest and Call(ItemDB.startQuest, itemId)
+    if type(start) ~= "number" or start <= 0 then start = nil end
+    return out, start, true
+end
+
 -- Haendler, die den Gegenstand verkaufen (NPC-IDs)
 function DB.ItemVendors(itemId)
     local v = ItemDB and ItemDB.vendors and Call(ItemDB.vendors, itemId)

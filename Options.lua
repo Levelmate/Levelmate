@@ -491,6 +491,76 @@ end)
 EndCard()
 
 ---------------------------------------------------------------------------
+-- Komfort
+---------------------------------------------------------------------------
+NewPage("comfort", "Komfort", "Interface\\Icons\\INV_Misc_Coin_01", "Kleine Helfer für unterwegs")
+Card("Quests")
+Toggle("Quests automatisch annehmen", "nur Quests aus deiner Route; übersprungene nie",
+    function() return Levelmate_DB.autoAccept == true end,
+    function(v) Levelmate_DB.autoAccept = v and true or nil end)
+Toggle("Auch Quests außerhalb der Route annehmen", "sonst nur Quests, die Levelmate einplant",
+    function() return Levelmate_DB.autoAcceptAll == true end,
+    function(v) Levelmate_DB.autoAcceptAll = v and true or nil end)
+Toggle("Fertige Quests automatisch abgeben", "bei mehreren Belohnungen wählst du selbst",
+    function() return Levelmate_DB.autoTurnIn == true end,
+    function(v) Levelmate_DB.autoTurnIn = v and true or nil end)
+local comfortHint = card:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+comfortHint:SetPoint("TOPLEFT", card, "TOPLEFT", 10, card.y - 4)
+comfortHint:SetWidth(CARD_W - 20)
+comfortHint:SetJustifyH("LEFT")
+Txt(comfortHint, "Shift gedrückt halten, wenn du den Questgeber ansprichst: dann passiert dieses eine Mal nichts automatisch.")
+card.y = card.y - 34
+EndCard()
+Card("Hinweise")
+Toggle("Beste Questbelohnung markieren", "goldener Rahmen um die beste Wahl für deine Klasse",
+    function() return Levelmate_DB.rewardHint ~= false end,
+    function(v) Levelmate_DB.rewardHint = v and true or false end)
+do
+    local lab = card:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    lab:SetPoint("TOPLEFT", card, "TOPLEFT", 10, card.y - 4)
+    Txt(lab, "Belohnungen bewerten für:")
+    card.y = card.y - 18
+    local ROLES = { { key = nil, text = "Automatisch" }, { key = "dps", text = "Schaden" }, { key = "heal", text = "Heilen" } }
+    local roleButtons = {}
+    local function MarkRole()
+        local cur = Levelmate_DB and Levelmate_DB.rewardRole
+        for _, b in ipairs(roleButtons) do b:SetSelected(b.key == cur) end
+    end
+    local RW = math.floor((CARD_W - 20 - 12) / 3)
+    for i, r in ipairs(ROLES) do
+        local b = FlatButton(card, r.text, RW, function() Levelmate_DB.rewardRole = r.key; MarkRole() end)
+        b:SetPoint("TOPLEFT", card, "TOPLEFT", 10 + (i - 1) * (RW + 6), card.y - 2)
+        b.key = r.key
+        b.tip = r.key == nil and "Heiler, wenn die meisten Talentpunkte im Heil-Baum sind" or nil
+        roleButtons[#roleButtons + 1] = b
+    end
+    card.y = card.y - 30
+    frame:HookScript("OnShow", MarkRole)
+    MarkRole()
+end
+Toggle("Questgegner an Namensplaketten", "Symbol mit Fortschritt (z. B. 3/8) über Gegnern, die du brauchst",
+    function() return Levelmate_DB.questPlates ~= false end,
+    function(v) Levelmate_DB.questPlates = v and true or false
+        if Levelmate.QuestMobs then Levelmate.QuestMobs.Refresh() end end)
+Toggle("Quest-Gegenstände in den Taschen markieren", "Haken = gebraucht, X = kann weg, ! = startet Quest; Liste mit /lm taschen",
+    function() return Levelmate_DB.bagHint ~= false end,
+    function(v) Levelmate_DB.bagHint = v and true or false
+        if Levelmate.Bags and Levelmate.Bags.SoonBags then Levelmate.Bags.SoonBags() end
+        if Levelmate.Bags and Levelmate.Bags.RefreshBaganator then Levelmate.Bags.RefreshBaganator() end end)
+Toggle("Gasthaus-Tipp beim Ausloggen", "wenn du außerhalb eines Gasthauses ausloggst: nächstes Gasthaus für Ruhe-Bonus",
+    function() return Levelmate_DB.restHint ~= false end,
+    function(v) Levelmate_DB.restHint = v and true or false end)
+EndCard()
+Card("Händler")
+Toggle("Graue Gegenstände automatisch verkaufen", "beim Öffnen eines Händlers, mit Summe im Chat",
+    function() return Levelmate_DB.autoSellGrey == true end,
+    function(v) Levelmate_DB.autoSellGrey = v and true or nil end)
+Toggle("Automatisch reparieren", "wenn der Händler reparieren kann und dein Gold reicht",
+    function() return Levelmate_DB.autoRepair == true end,
+    function(v) Levelmate_DB.autoRepair = v and true or nil end)
+EndCard()
+
+---------------------------------------------------------------------------
 -- Gruppe
 ---------------------------------------------------------------------------
 NewPage("group", "Gruppe", "Interface\\Icons\\Ability_Warrior_BattleShout", "Zusammen mit Freunden leveln")

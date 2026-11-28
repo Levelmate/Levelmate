@@ -2,7 +2,7 @@ local addonName = ...
 local L = Levelmate.L
 Levelmate = Levelmate or {}
 Levelmate.name = addonName
-Levelmate.version = "1.1.2"
+Levelmate.version = "1.1.3"
 
 local function Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage(L("|cff66ccffLevelmate|r: ") .. tostring(msg))
@@ -2190,6 +2190,7 @@ local function Refresh()
     local ok, err = xpcall(RefreshInner, function(e)
         return tostring(e) .. (debugstack and (" | " .. (debugstack(2, 3, 0) or ""):gsub("\n", " / ")) or "")
     end)
+    if ok and Levelmate.QuestMobs then pcall(Levelmate.QuestMobs.Refresh) end
     if not ok then
         Levelmate.lastRefreshError = err
         -- nicht mit veraltetem Inhalt (z. B. "Questdaten werden geladen") stehen bleiben

@@ -1681,11 +1681,19 @@ do
             watch[k] = { t0 = now, d0 = dB, wx = wp.wx, wy = wp.wy, dw0 = Dist(a.wx, a.wy, wp.wx, wp.wy) }
             return wp
         end
+        -- Laeufst du den Weg entlang, rueckt sein naechster Punkt weiter: dann ist
+        -- alles in Ordnung -> neu messen (sonst hielte man das fuer eine Abkuerzung).
+        if Dist(wp.wx, wp.wy, w.wx, w.wy) > 30 then
+            watch[k] = { t0 = now, d0 = dB, wx = wp.wx, wy = wp.wy, dw0 = Dist(a.wx, a.wy, wp.wx, wp.wy) }
+            return wp
+        end
+        -- In Hoehlen und Gebaeuden nie: dort fuehrt die Luftlinie durch Waende
+        if IsIndoors and IsIndoors() then w.t0, w.d0 = now, dB; return wp end
         -- Fortschritt pruefen: deutlich naeher am Ziel, aber nicht entlang des Umwegs
-        -- (der erste Umweg-Punkt ist nicht naeher gekommen)
+        -- (derselbe Umweg-Punkt ist nicht naeher gekommen)
         local closer = w.d0 - dB
         local dw = Dist(a.wx, a.wy, w.wx, w.wy)
-        if closer >= 80 and dw >= w.dw0 - 20 and now - w.t0 >= 8 then
+        if closer >= 100 and dw >= w.dw0 - 20 and now - w.t0 >= 10 then
             ignore[k] = now + IGNORE_SECONDS
             watch[k] = nil
             T.lastTrailPath = nil

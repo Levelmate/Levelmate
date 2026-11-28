@@ -36,6 +36,16 @@ The window
 - Class trainer: becomes a step when you can learn new spells and the
   trainer is nearby or you are in their capital city.
 
+Helpers (Settings → Comfort)
+- Best quest reward: a golden frame marks the best reward for your class
+  (uses GearQuest Forever if installed).
+- Quest enemies get an icon with your progress (e.g. 3/8) on their nameplates.
+- Quest items in your bags: check = needed, ! = starts a quest, ? = quest
+  still open, X = can go (Blizzard bags and Baganator).
+- Inn tip when you log out outside an inn.
+- Optional (off by default): accept route quests and turn in finished quests
+  automatically, sell grey items, repair. Hold Shift to skip once.
+
 Language
 - Settings (gear icon) → "Language": Automatic (game language), Deutsch or
   English. Quest, NPC and zone names always follow your game language.
@@ -65,6 +75,7 @@ Right-click the arrow: straight to the target / follow the path again
 /lm group      group mode: which group members (with Levelmate) share your quests
 /lm group window  small window with your group members, level and shared quests
 /lm session    time, quests and XP of this and your last session
+/lm bags       quest items you no longer need
 /lm tips       show the introduction again
 /lm perf       addon processing time
 /lm first <quest>  put a quest from your log first (/lm first: normal order)

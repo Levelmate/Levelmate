@@ -288,6 +288,8 @@ local function MobNames(questID)
     return c or nil
 end
 
+Levelmate._MobNames = MobNames
+
 local function TooltipLine(tt)
     if DB().npcTooltip == false then return end
     if Levelmate.InCombat and Levelmate.InCombat() then return end
@@ -498,6 +500,7 @@ local function HookSlash()
         if m == "sitzung" or m == "session" then return Levelmate.SessionCommand() end
         if m == "tipps" or m == "tips" then return Levelmate.ShowTips(true) end
         if m == "journal" then return Levelmate.JournalTest() end
+        if (m == "taschen" or m == "bags" or m == "bag") and Levelmate.Bags then return Levelmate.Bags.Command() end
         if m == "gruppe fenster" or m == "group window" or m == "gf" then return Levelmate.ToggleGroupFrame() end
         return orig(msg)
     end

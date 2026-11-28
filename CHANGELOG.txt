@@ -1,3 +1,42 @@
+Levelmate 1.1.3
+===============
+
+Neu
+- Beste Questbelohnung: Gibt es mehrere Belohnungen zur Wahl, bekommt die beste für deine Klasse
+  einen feinen goldenen Rahmen und das Levelmate-Abzeichen (Maus drüber: "beste Wahl für dich") –
+  die größte Verbesserung gegenüber deiner Ausrüstung. Ist nichts davon besser, zeigt nur eine
+  kleine Goldmünze die Belohnung mit dem höchsten Verkaufswert. Dazu eine Zeile im Chat.
+  Mitgerechnet werden Werte, Waffenschaden und Anlege-Effekte (Zauberschaden, Heilung,
+  Angriffskraft, kritische Treffer, Trefferchance, Mana alle 5 Sek.). Heiler werden am
+  Talentbaum erkannt oder in den Einstellungen gewählt (Automatisch / Schaden / Heilen).
+  Zauberschulen zählen je Klasse (Hexer: Schatten voll, Feuer weniger; Magier: Frost/Feuer …).
+  Ist GearQuest Forever installiert, nutzt Levelmate dessen Bewertung (mit deiner Spezialisierung).
+- Questgegner an den Namensplaketten: Gegner, die du für eine Quest noch brauchst, bekommen ein
+  Symbol mit dem Fortschritt (z. B. 3/8).
+- Quest-Gegenstände in den Taschen: Levelmate zeigt bei jedem Quest-Gegenstand, wofür er gut ist –
+  oben links im Taschenfeld und im Tooltip:
+  · grüner Haken: wird für eine Quest in deinem Log gebraucht
+  · gelbes Ausrufezeichen: startet eine Quest – behalten
+  · graues Fragezeichen: gehört zu einer Quest, die du noch machen kannst
+  · rotes X: wird für keine Quest mehr gebraucht – kann weg (dazu ein Hinweis nach dem
+    Abgeben und eine Liste mit /lm taschen)
+  Funktioniert mit den Blizzard-Taschen und mit Baganator (dort als eigenes Ecken-Symbol
+  "Levelmate: Quest-Gegenstände", verschiebbar). Fehlen Daten, sagt Levelmate lieber nichts.
+- Gasthaus-Tipp: Loggst du außerhalb eines Gasthauses aus, nennt Levelmate das nächste Gasthaus
+  für den Ruhe-Bonus. Im Gasthaus oder mit Schlafsack kommt kein Hinweis.
+  (Alle diese Hinweise lassen sich unter Einstellungen > Komfort abschalten.)
+- Einstellungen > Komfort: kleine Helfer, alle standardmäßig aus:
+  · Quests automatisch annehmen – nur die aus deiner Route (übersprungene nie); auf Wunsch alle
+  · Fertige Quests automatisch abgeben (bei mehreren Belohnungen wählst du selbst)
+  · Graue Gegenstände beim Händler automatisch verkaufen (mit Summe im Chat)
+  · Beim Händler automatisch reparieren
+  Shift gedrückt halten: dieses eine Mal passiert nichts automatisch.
+
+Behoben
+- Pfeil: "Kürzerer Weg erkannt" kam fälschlich, wenn du einem gelernten Weg gefolgt bist
+  (z. B. durch eine Höhle) – der Pfeil zeigte dann quer durch die Wände. Jetzt erkennt
+  Levelmate, dass du dem Weg folgst, und in Höhlen und Gebäuden schaltet er nie um.
+
 Levelmate 1.1.2
 ===============
 
