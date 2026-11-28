@@ -115,7 +115,7 @@ local toast
 local function BuildToast()
     toast = CreateFrame("Frame", "LevelmateLevelToast", UIParent, "BackdropTemplate")
     toast:SetSize(320, 80)
-    toast:SetPoint("TOP", 0, -150)
+    toast:SetPoint("TOP", 0, -320)
     toast:SetFrameStrata("HIGH")
     toast:SetBackdrop({ bgFile = "Interface/Buttons/WHITE8X8", edgeFile = "Interface/Buttons/WHITE8X8", edgeSize = 1 })
     toast:SetBackdropColor(0.035, 0.055, 0.12, 0.9)
@@ -170,6 +170,14 @@ local function ShowLevelToast(level)
     toast:SetHeight(math.max(64, (toast.body:GetStringHeight() or 20) + 46))
     toast.t = 0
     toast:SetAlpha(1)
+    -- unter Blizzards "Stufe erreicht"-Anzeige, damit sich nichts ueberlappt
+    toast:ClearAllPoints()
+    local lud = rawget(_G, "LevelUpDisplay")
+    if lud and lud.GetBottom and lud:GetBottom() and lud:GetBottom() > 200 then
+        toast:SetPoint("TOP", lud, "BOTTOM", 0, -30)
+    else
+        toast:SetPoint("TOP", UIParent, "TOP", 0, -320)
+    end
     toast:Show()
 end
 Levelmate.ShowLevelToast = ShowLevelToast

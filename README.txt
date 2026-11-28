@@ -24,12 +24,15 @@ The window
   "Later" postpones the step (it returns after half a level), "Skip" removes
   a quest from the route for good. The arrow brings the last step back right
   away, /lm skipped clear brings all back.
+- Click a quest name: quests in your log open the quest log, quests you still
+  have to accept open the world map at the quest giver.
 - "Next steps" and "Quest log" can be folded open/closed with a click.
 - The minus button next to the title collapses the window to the current step,
   the lock protects all Levelmate windows against moving and resizing.
 - Dungeon window (key icon): dungeons for your level with their quests
   ("First" puts a quest at the top of your route, "Map" shows where it starts),
-  bosses and the loot you got from them.
+  bosses and the loot you got from them. With AtlasLoot installed, the Loot tab
+  shows every boss's full loot table with drop chances.
 - Class trainer: becomes a step when you can learn new spells and the
   trainer is nearby or you are in their capital city.
 

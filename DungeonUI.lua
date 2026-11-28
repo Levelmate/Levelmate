@@ -422,7 +422,7 @@ local function RecordLoot()
         if itemId and (tonumber(quality) or 0) >= 2 then
             local guid = GetLootSourceInfo(slot)
             local npcId = type(guid) == "string" and tonumber(guid:match("^Creature%-%d+%-%d+%-%d+%-%d+%-(%d+)"))
-            if npcId and idx[npcId] then
+            if npcId and (idx[npcId] or (Levelmate.Atlas and Levelmate.Atlas.IsBoss(npcId))) then
                 local db = DB()
                 db.bossLoot = db.bossLoot or {}
                 local t = db.bossLoot[npcId] or {}
@@ -465,7 +465,7 @@ end
 ---------------------------------------------------------------------------
 -- Ort auf der Weltkarte zeigen (Questgeber / Anfang einer Vorquest)
 ---------------------------------------------------------------------------
-local function ShowOnMap(point, questName, giver)
+local function ShowOnMap(point, questName, giver, fmt)
     if not (point and point.map and point.x and point.y) then
         Print(string.format(L("Für „%s“ kennt Levelmate keinen Ort."), questName or "?"))
         return
@@ -492,9 +492,10 @@ local function ShowOnMap(point, questName, giver)
         if WorldMapFrame and WorldMapFrame.SetMapID then WorldMapFrame:SetMapID(map) end
     end)
     local zone = Levelmate.Planner.MapName and Levelmate.Planner.MapName(map) or "?"
-    Print(string.format(L("Anfang von „%s“: %s, %s (%.1f, %.1f)"), questName or "?", giver or "?", zone, point.x, point.y)
+    Print(string.format(fmt or L("Anfang von „%s“: %s, %s (%.1f, %.1f)"), questName or "?", giver or "?", zone, point.x, point.y)
         .. (pinned and L(" – auf der Karte markiert.") or ""))
 end
+Levelmate.ShowOnMap = ShowOnMap
 
 -- Wo beginnt eine Quest, wenn der Planer keinen Punkt hat? Questgeber im Dungeon
 -- (z. B. Belnistrasz in den Huegeln) -> Eingang des Dungeons; Gegenstand -> Gegner,
@@ -740,6 +741,28 @@ local SMARK = { log = "", avail = "", blocked = "", done = "" }
 local function ShowBosses(e, key)
     local list = Bosses(key)
     if not list then
+        -- Keine eigene Bossliste (z. B. neue Forever-Dungeons): Bosse aus AtlasLoot
+        local Atlas = Levelmate.Atlas
+        local sections = Atlas and Atlas.Installed() and Atlas.Ensure() == "ok"
+            and Atlas.ForDungeon(e and e.area, e and e.name, nil, e and e.atlasKey)
+        if sections then
+            local n = 0
+            for _, sec in ipairs(sections) do
+                if #sections > 1 then Add({ header = true, text = sec.title or "", gap = n > 0 and 4 or 0 }) end
+                for _, boss in ipairs(sec.bosses) do
+                    if #boss.npcs > 0 then
+                        n = n + 1
+                        Add({ icon = ICON.boss, iconSize = 16, text = n .. ". " .. boss.name,
+                              right = string.format(L("%d Gegenstände"), #boss.items) })
+                    end
+                end
+            end
+            if n > 0 then
+                Add({ text = L("Bossliste aus AtlasLoot – die Beute steht unter „Beute“."), small = true,
+                      textColor = { 0.65, 0.65, 0.65 }, gap = 6 })
+                return
+            end
+        end
         Add({ text = L("Für diesen Dungeon kennt Levelmate noch keine Bossliste."), textColor = { 0.7, 0.7, 0.7 } })
         return
     end
@@ -798,19 +821,26 @@ local function ItemLine(id)
     return "|cff" .. (QCOL[quality or 1] or "ffffff") .. name .. "|r", icon, quality or 1
 end
 
-local function ShowLoot(e, key)
-    local list = Bosses(key)
-    Add({ text = L("Levelmate merkt sich, was bei dir von den Bossen fällt (grün und besser). Mit jedem Lauf wird die Liste voller."),
-          small = true, textColor = { 0.65, 0.65, 0.65 } })
-    if not list then
-        Add({ text = L("Für diesen Dungeon kennt Levelmate noch keine Bossliste."), textColor = { 0.7, 0.7, 0.7 }, gap = 6 })
-        return
-    end
-    local loot = DB().bossLoot or {}
+local function LootRow(itemId, text, icon, right)
+    Add({ icon = icon, iconSize = 18, iconCoords = { 0.08, 0.92, 0.08, 0.92 }, text = text,
+          right = right, item = itemId,
+          onClick = function()
+              if IsModifiedClick and IsModifiedClick("CHATLINK") then
+                  local _, link = ItemInfo(itemId)
+                  if link and ChatEdit_InsertLink then ChatEdit_InsertLink(link) end
+              end
+          end })
+end
+
+local function SeenText(cnt)
+    return "|cff66dd66" .. string.format(L("%d× bei dir"), cnt) .. "|r"
+end
+
+local function ShowOwnLoot(list, loot, skip)
     local any = false
-    for _, b in ipairs(list) do
+    for _, b in ipairs(list or {}) do
         local items = loot[b[1]]
-        if items and next(items) then
+        if items and next(items) and not (skip and skip[b[1]]) then
             any = true
             Add({ header = true, text = BossName(b), gap = 6 })
             local sorted = {}
@@ -820,19 +850,82 @@ local function ShowLoot(e, key)
             end
             table.sort(sorted, function(x, y) if x.q ~= y.q then return x.q > y.q end return x.id < y.id end)
             for _, it in ipairs(sorted) do
-                local itemId = it.id
-                Add({ icon = it.icon, iconSize = 18, iconCoords = { 0.08, 0.92, 0.08, 0.92 }, text = it.text,
-                      right = it.cnt > 1 and ("×" .. it.cnt) or nil, item = itemId,
-                      onClick = function()
-                          if IsModifiedClick and IsModifiedClick("CHATLINK") then
-                              local _, link = ItemInfo(itemId)
-                              if link and ChatEdit_InsertLink then ChatEdit_InsertLink(link) end
-                          end
-                      end })
+                LootRow(it.id, it.text, it.icon, it.cnt > 1 and ("×" .. it.cnt) or nil)
             end
         end
     end
-    if not any then
+    return any
+end
+
+local function ShowLoot(e, key)
+    local list = Bosses(key)
+    local loot = DB().bossLoot or {}
+    local Atlas = Levelmate.Atlas
+    local sections
+    if Atlas and Atlas.Installed() then
+        local st = Atlas.Ensure()
+        if st == "ok" then
+            local npcs = {}
+            for _, b in ipairs(list or {}) do npcs[#npcs + 1] = b[1] end
+            sections = Atlas.ForDungeon(e and e.area, e and e.name, npcs, e and e.atlasKey)
+        elseif st == "combat" then
+            Atlas.waiting = true
+            Add({ text = L("AtlasLoot-Beute wird nach dem Kampf geladen."), small = true, textColor = { 1, 0.82, 0 } })
+        end
+    end
+
+    if sections then
+        Add({ text = L("Beute laut AtlasLoot, mit Dropchance. Grün markiert, was bei dir schon gefallen ist."),
+              small = true, textColor = { 0.65, 0.65, 0.65 } })
+        local covered = {}
+        for _, sec in ipairs(sections) do
+            if #sections > 1 then
+                Add({ text = "|cffffffff" .. (sec.title or "") .. "|r", gap = 10 })
+            end
+            for _, boss in ipairs(sec.bosses) do
+                Add({ header = true, text = boss.name, gap = 6 })
+                local own = {}
+                for _, npc in ipairs(boss.npcs) do
+                    covered[npc] = true
+                    for id, cnt in pairs(loot[npc] or {}) do own[id] = (own[id] or 0) + cnt end
+                end
+                local shown = {}
+                for _, it in ipairs(boss.items) do
+                    shown[it.id] = true
+                    local text, icon = ItemLine(it.id)
+                    local parts = {}
+                    if own[it.id] then parts[#parts + 1] = SeenText(own[it.id]) end
+                    if it.rate then
+                        local r = it.rate >= 10 and string.format("%d%%", math.floor(it.rate + 0.5)) or string.format("%.1f%%", it.rate)
+                        parts[#parts + 1] = "|cffaaaaaa" .. r .. "|r"
+                    end
+                    LootRow(it.id, text, icon, #parts > 0 and table.concat(parts, "  ") or nil)
+                end
+                -- bei dir gefallen, aber nicht in der Tabelle
+                for id, cnt in pairs(own) do
+                    if not shown[id] then
+                        local text, icon = ItemLine(id)
+                        LootRow(id, text, icon, SeenText(cnt))
+                    end
+                end
+            end
+        end
+        -- eigene Beute von Bossen, die AtlasLoot hier nicht fuehrt
+        ShowOwnLoot(list, loot, covered)
+        return
+    end
+
+    Add({ text = L("Levelmate merkt sich, was bei dir von den Bossen fällt (grün und besser). Mit jedem Lauf wird die Liste voller."),
+          small = true, textColor = { 0.65, 0.65, 0.65 } })
+    if not (Atlas and Atlas.Installed()) then
+        Add({ text = L("Tipp: Mit AtlasLoot installiert zeigt Levelmate hier die komplette Beute jedes Bosses."),
+              small = true, textColor = { 1, 0.82, 0 } })
+    end
+    if not list then
+        Add({ text = L("Für diesen Dungeon kennt Levelmate noch keine Bossliste."), textColor = { 0.7, 0.7, 0.7 }, gap = 6 })
+        return
+    end
+    if not ShowOwnLoot(list, loot) then
         Add({ text = L("Noch keine Beute gesehen. Lauf den Dungeon einmal – danach steht hier, was die Bosse fallen gelassen haben."),
               textColor = { 0.8, 0.8, 0.8 }, gap = 6 })
     end

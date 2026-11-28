@@ -187,8 +187,30 @@ end
 Levelmate.Smart.DEFER_LEVELS = 0.5
 -- perm = true: "Ueberspringen" - die Quest kommt nicht von selbst wieder
 -- (nur ueber den Zurueck-Pfeil oder /lm ausgelassen leeren).
-function Levelmate.Smart.SetDeferred(questID, state, perm)
-    if questID then Deferred()[questID] = state and { p = Progress(), perm = perm or nil } or nil end
+-- kind: Art des Schritts beim Zurueckstellen (z. B. "DO", "TURNIN")
+function Levelmate.Smart.SetDeferred(questID, state, perm, kind)
+    if questID then Deferred()[questID] = state and { p = Progress(), perm = perm or nil, kind = kind } or nil end
+end
+
+-- "Später" beim Erledigen gedrueckt, Quest inzwischen trotzdem fertig:
+-- die Abgabe nicht mit zurueckstellen.
+function Levelmate.Smart.ReleaseIfReady(questID, ready)
+    local v = questID and Deferred()[questID]
+    if ready and type(v) == "table" and not v.perm and v.kind and v.kind ~= "TURNIN" then
+        Deferred()[questID] = nil
+        return true
+    end
+    return false
+end
+
+-- Fuer den Fehlerbericht: zurueckgestellte und uebersprungene Quests
+function Levelmate.Smart.DeferredList()
+    local later, perm = {}, {}
+    for id, v in pairs(Deferred()) do
+        if type(v) == "table" and v.perm then perm[#perm + 1] = id else later[#later + 1] = id end
+    end
+    table.sort(later); table.sort(perm)
+    return later, perm
 end
 
 function Levelmate.Smart.IsPermanent(questID)

@@ -1,3 +1,51 @@
+Levelmate 1.1.2
+===============
+
+Neu
+- Dungeon-Fenster: Die neuen Forever-Dungeons Die Versunkene Stadt, Krol'dok Stronghold,
+  Alcaz Prison, Blackmaw Hold und The Shaper's Terrace erscheinen jetzt mit ihren Quests, Stufe
+  und Eingang. Mit AtlasLoot gibt es dort auch Bossliste und Beute.
+- Klick auf den Questnamen bei "Annehmen" (Karte oder "Nächste Schritte"): Die Weltkarte geht
+  beim Questgeber auf, mit Wegmarke. Quests im Log öffnen wie bisher das Questlog.
+- Liegt ein Questziel in einem dieser Dungeons, zeigt der Pfeil zum Eingang (in 1.1.1 nur für
+  Die Versunkene Stadt).
+
+Behoben
+- "Nächste Schritte" zeigte nach "Jetzt hin" denselben Dungeon viele Male hintereinander
+  (z. B. 9× Die Versunkene Stadt). Jetzt steht er einmal drin, danach geht die Route weiter.
+- "Später"/"Überspringen" bei einem Dungeon, den du im Dungeon-Fenster mit "Jetzt hin" gewählt
+  hattest, hat nichts bewirkt – der Dungeon blieb oben. Jetzt hebt das "Jetzt hin" mit auf.
+  Außerdem gilt "Jetzt hin" bei den neuen Forever-Dungeons als erledigt, sobald du drin bist.
+- Mehr Sicherheit gegen "Questdaten werden geladen …", das nicht weggeht: Fehler beim Anzeigen
+  oder beim Einlesen einzelner Quests halten Levelmate nicht mehr an. /lm bug zeigt dazu jetzt
+  den Zustand der Questdaten und den letzten Anzeige-Fehler.
+- Stufenaufstieg: Die Levelmate-Meldung erscheint jetzt unter Blizzards "Stufe erreicht"-Anzeige
+  statt darüber.
+- Größe ändern: Wurde die Maustaste über einem anderen Fenster losgelassen (z. B. Questtracker),
+  blieb das Levelmate-Fenster "am Ziehen" hängen und ließ sich nicht mehr verschieben.
+
+Levelmate 1.1.1
+===============
+
+Neu
+- Dungeon-Fenster, Reiter "Beute": Ist AtlasLoot installiert, zeigt Levelmate dort die komplette
+  Beute jedes Bosses mit Dropchance (auch für die neuen Forever-Dungeons). Was bei dir schon
+  gefallen ist, steht grün daneben. Levelmate liest die Tabellen nur zur Laufzeit aus AtlasLoot
+  und lädt sie erst, wenn du den Reiter öffnest. Ohne AtlasLoot bleibt alles wie bisher.
+
+Behoben
+- „Später“ beim Erledigen einer Quest hat auch die Abgabe zurückgestellt, wenn die Quest
+  danach trotzdem fertig wurde. Jetzt kommt die Abgabe sofort in die Route.
+- Fehlerbericht (/lm bug) zeigt jetzt auch zurückgestellte und übersprungene Quests.
+
+Verbessert
+- Quests für die neuen Forever-Dungeons: Liegt das Ziel im Dungeon, zeigt der Pfeil jetzt zum
+  Dungeoneingang statt zum Questgeber (zuerst für Die Versunkene Stadt / The Drowned City).
+- Pfeil: Zeigt er einen gelernten Umweg, du läufst aber direkt Richtung Ziel (z. B. über eine
+  Straße, die Levelmate noch nicht kennt) und kommst dabei deutlich näher, schaltet er für
+  dieses Ziel auf den direkten Weg ("Kürzerer Weg erkannt"). Dein Weg wird nebenbei als neuer
+  Trampelpfad gelernt.
+
 Levelmate 1.1.0
 ===============
 

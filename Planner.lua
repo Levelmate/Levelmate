@@ -1092,6 +1092,11 @@ function P.DangerLevels()
     return (Levelmate_DB and tonumber(Levelmate_DB.dangerLevels)) or CONFIG.dangerLevels
 end
 
+function P.PoolState()
+    return string.format("bereit=%s baut=%s stufe=%s quests=%d fehler=%d", tostring(P.poolReady), tostring(poolBuilding),
+        tostring(poolLevel), #pool, P.poolErrors or 0)
+end
+
 function P.BuildPool(onDone)
     costCache = {}
     LoadCompleted()   -- einmal je Stufe komplett neu einlesen
@@ -1106,7 +1111,9 @@ function P.BuildPool(onDone)
         local stop = math.min(#ids, i + 400)
         for k = i, stop do
             local id = ids[k]
-            local ql, rl, races, classes = DB.QuestBasics(id)
+            local okB, ql, rl, races, classes = pcall(DB.QuestBasics, id)
+            if not okB then P.poolErrors = (P.poolErrors or 0) + 1; ql = nil; rl = nil; races = nil; classes = nil end
+            if okB then
             if zoneLists and ql and ql > 0 then
                 local area = DB.QuestZone and DB.QuestZone(id)
                 local map = area and DB.AreaToUiMap(area)
@@ -1119,6 +1126,7 @@ function P.BuildPool(onDone)
             if ((ql or 0) >= minLevel or classQ) and (rl or 1) <= maxReq and (ql or 0) <= level + 12
                and HasBit(races, player.raceID) and HasBit(classes, player.classID) then
                 newPool[#newPool + 1] = id
+            end
             end
         end
         i = stop + 1
@@ -1469,6 +1477,7 @@ end
 local function OverviewArea(q, a)
     local area = QuestDungeonArea(a)
     if not area and q.zoneOrSort and q.zoneOrSort > 0 and DB.Dungeon(q.zoneOrSort) then area = q.zoneOrSort end
+    if not area and DB.ForeverQuestArea then area = DB.ForeverQuestArea(q.id) end
     return area
 end
 -- Gehoert diese Quest zum Dungeon, fuer den du im Dungeon-Fenster "Quests abholen"
@@ -1514,6 +1523,7 @@ function P.DungeonOverview(all)
             local lv = DungeonLevels(name)
             e = { name = name, area = area, entrance = entrance, min = lv and lv[1], max = lv and lv[2],
                   wings = DUNGEON_WINGS[DB.DungeonEnglish(name):upper()],
+                  atlasKey = DB.ForeverDungeons and DB.ForeverDungeons[area] and DB.ForeverDungeons[area].atlas,
                   inLog = {}, available = {}, blocked = {}, done = {}, later = 0, xp = 0 }
             byName[name] = e
             out[#out + 1] = e
@@ -1525,6 +1535,8 @@ function P.DungeonOverview(all)
     for _, lq in ipairs(Levelmate.Quests.GetList() or {}) do
         local q = DB.Quest(lq.questID)
         local area = q and OverviewArea(q, Analyze(q))
+        -- neuer Forever-Dungeon: am Kopf im Questlog erkennen
+        if q and not area and lq.dungeon and DB.ForeverDungeonByName then area = DB.ForeverDungeonByName(lq.header) end
         local e = area and Entry(area)
         if e then
             logged[q.id] = true
@@ -2274,6 +2286,9 @@ function P.Plan(modeKey, state)
     local kept = {}
     for _, c in ipairs(cands) do
         local skipReason
+        if c.live and c.live.status == Levelmate.Quests.STATUS_READY and Levelmate.Smart and Levelmate.Smart.ReleaseIfReady then
+            Levelmate.Smart.ReleaseIfReady(c.q.id, true)
+        end
         if Levelmate.Smart and Levelmate.Smart.IsDeferred({ questID = c.q.id }) then
             skipReason = (Levelmate.Smart.IsPermanent and Levelmate.Smart.IsPermanent(c.q.id))
                 and "von dir dauerhaft übersprungen" or "von dir übersprungen"
@@ -2539,9 +2554,24 @@ function P.Plan(modeKey, state)
                         targetName = wpName or L("Questgebiet laut Karte"), finisher = Nearest(wpObj, a.finishers),
                         seconds = tW + c.effort, stepSeconds = tW + c.effort, objEffort = c.effort, value = c.value })
                 elseif not added then
-                    -- Ziele ohne bekannte Orte: zur Abgabe bzw. Questgeber leiten.
+                    -- Ziele ohne bekannte Orte: bei bekanntem Forever-Dungeon zum Eingang,
+                    -- sonst zur Abgabe bzw. Questgeber leiten.
+                    local hdr = c.dungeonTag and c.live and c.live.header
+                    local fe = hdr and DB.ForeverDungeonEntrance(hdr)
+                    -- sonst ueber die Quest-ID (unabhaengig von der Spielsprache)
+                    local fArea = not fe and c.dungeonTag and DB.ForeverQuestArea and DB.ForeverQuestArea(c.q.id)
+                    if fArea then
+                        local fname, fent = DB.Dungeon(fArea)
+                        if fent then fe, hdr = { map = fent.map, x = fent.x, y = fent.y }, fname end
+                    end
                     local f, tf = Nearest(here, a.finishers)
-                    if f then
+                    if fe then World(fe) end
+                    if fe and fe.cont then
+                        local tE = TravelSeconds(here, fe)
+                        table.insert(actions, { kind = "DO", c = c, target = fe, finisher = f or fe,
+                            dungeonEntrance = true, targetName = L("Eingang ") .. hdr,
+                            seconds = tE + c.effort, stepSeconds = tE + c.effort, objEffort = c.effort, value = c.value })
+                    elseif f then
                         table.insert(actions, { kind = "DO", c = c, target = f, finisher = f,
                             dungeonUnknown = c.dungeonTag or nil,
                             targetName = c.dungeonTag and (L("Dungeon ") .. ((c.live and c.live.header) or "")) or a.finisherName,
@@ -2563,6 +2593,8 @@ function P.Plan(modeKey, state)
     Mark("A-Dungeon")
     -- Dungeon-Fenster "Jetzt hin": Dungeon auch ohne Quests im Log einplanen
     local goArea = DungeonGoArea()
+    -- in der Vorschau schon gelaufen: nicht nochmal einplanen
+    if goArea and state and state.simDungeonDone and state.simDungeonDone[goArea] then goArea = nil end
     if goArea then
         local have = false
         for _, g in pairs(dungeonGroups) do if DB.SameDungeon(g.area, goArea) then have = true end end
@@ -2570,7 +2602,16 @@ function P.Plan(modeKey, state)
             local name, entrance = DB.Dungeon(goArea)
             if name then
                 if entrance then World(entrance) end
-                dungeonGroups[goArea] = { list = {}, value = 0, area = goArea, name = name, entrance = entrance }
+                local g = { list = {}, value = 0, area = goArea, name = name, entrance = entrance }
+                -- Quests neuer Forever-Dungeons (QuestieDB kennt sie nicht als Dungeonquests)
+                if DB.ForeverQuestArea then
+                    for _, c in ipairs(kept) do
+                        if c.live and c.live.status ~= Levelmate.Quests.STATUS_READY and DB.ForeverQuestArea(c.q.id) == goArea then
+                            table.insert(g.list, c); g.value = g.value + (c.value or 0)
+                        end
+                    end
+                end
+                dungeonGroups[goArea] = g
             end
         end
     end
@@ -2621,6 +2662,7 @@ function P.Plan(modeKey, state)
         end
     end
     for _, g in pairs(dungeonGroups) do
+      if not (state and state.simDungeonDone and g.area and state.simDungeonDone[g.area] and #g.list == 0) then
         local e = g.entrance
         local t = e and TravelSeconds(here, e) or CONFIG.crossContinent
         -- Wert eines Laufs: Quest-XP + Gegner-XP im Dungeon (etwa so viel wie
@@ -2639,6 +2681,7 @@ function P.Plan(modeKey, state)
             seconds = t + CONFIG.dungeonRun, stepSeconds = t + CONFIG.dungeonRun,
             value = g.value + killXP, questXP = g.value, pickups = g.pickups,
             upcoming = (g.upcoming and #g.list < 2) and g.upcoming or nil, upcomingLevel = g.upcomingLevel })
+      end
     end
     Mark("A-Abgaben")
     -- Abgaben buendeln: Wert aller fertigen Quests im selben Lager zusammenzaehlen,
@@ -3434,6 +3477,8 @@ local function PreviewRun(modeKey, steps, yieldEach)
             elseif act.kind == "ABANDON" then
                 local k = Find(id); if k then table.remove(state.live, k) end
             elseif act.kind == "DUNGEON" then
+                state.simDungeonDone = state.simDungeonDone or {}
+                if act.group.area then state.simDungeonDone[act.group.area] = true end
                 for _, dc in ipairs(act.group.list) do
                     local _, e = Find(dc.q.id); if e then e.status = Qs.STATUS_READY end
                 end

@@ -25,7 +25,13 @@ Das Fenster
   "Später" stellt den Schritt zurück (kommt nach einem halben Level wieder),
   "Überspringen" nimmt eine Quest dauerhaft aus der Route. Der Pfeil holt
   den letzten Schritt sofort zurück, /lm ausgelassen leeren holt alle zurück.
+- Klick auf einen Questnamen: Quests im Log öffnen das Questlog, Quests zum
+  Annehmen öffnen die Weltkarte beim Questgeber.
 - "Nächste Schritte" und "Questlog" lassen sich per Klick auf- und zuklappen.
+- Dungeon-Fenster (Schlüssel-Symbol): Dungeons für deine Stufe mit ihren Quests
+  ("Zuerst" setzt eine Quest an den Anfang der Route, "Karte" zeigt, wo sie
+  anfängt), Bosse und die Beute, die bei dir gefallen ist. Mit AtlasLoot zeigt
+  der Reiter "Beute" die komplette Beute jedes Bosses mit Dropchance.
 - Klassenlehrer: Erscheint als Schritt, wenn du neue Zauber lernen kannst
   und der Lehrer in der Nähe ist oder du in seiner Hauptstadt bist.
 

@@ -1650,3 +1650,50 @@ function T.ApplySeed()
     T.ImportText(seed.text)
     Levelmate_DB.seedVersion = seed.version or 1
 end
+
+---------------------------------------------------------------------------
+-- Besserer Weg erkannt: Zeigt der Pfeil einen gelernten Umweg, du laeufst aber
+-- (z. B. ueber eine Strasse, die du noch nie gegangen bist) direkt Richtung Ziel
+-- und kommst dabei deutlich naeher, dann ist der Umweg fuer dieses Ziel nicht
+-- noetig: Levelmate schaltet fuer dieses Ziel auf den direkten Weg (Luftlinie)
+-- und lernt deinen Weg nebenbei als neuen Trampelpfad.
+---------------------------------------------------------------------------
+do
+    local origTrail = T.TrailWaypoint
+    local watch = {}        -- [Zielschluessel] = { t0, d0, wp0 }
+    local ignore = {}       -- [Zielschluessel] = Zeit, bis zu der der Umweg ignoriert wird
+    local IGNORE_SECONDS = 1800
+    local function Key(b) return (b.cont or 0) .. ":" .. math.floor((b.wx or 0) / 40) .. "," .. math.floor((b.wy or 0) / 40) end
+    T.IgnoredDetours = ignore
+    T.TrailWaypoint = function(a, b)
+        if not (a and b and a.wx and b.wx) then return origTrail(a, b) end
+        local now = GetTime and GetTime() or 0
+        local k = Key(b)
+        if ignore[k] and ignore[k] > now then
+            T.lastTrailPath = nil
+            return nil
+        end
+        local wp = origTrail(a, b)
+        if not wp or not wp.wx then watch[k] = nil; return wp end
+        local dB = Dist(a.wx, a.wy, b.wx, b.wy)
+        local w = watch[k]
+        if not w then
+            watch[k] = { t0 = now, d0 = dB, wx = wp.wx, wy = wp.wy, dw0 = Dist(a.wx, a.wy, wp.wx, wp.wy) }
+            return wp
+        end
+        -- Fortschritt pruefen: deutlich naeher am Ziel, aber nicht entlang des Umwegs
+        -- (der erste Umweg-Punkt ist nicht naeher gekommen)
+        local closer = w.d0 - dB
+        local dw = Dist(a.wx, a.wy, w.wx, w.wy)
+        if closer >= 80 and dw >= w.dw0 - 20 and now - w.t0 >= 8 then
+            ignore[k] = now + IGNORE_SECONDS
+            watch[k] = nil
+            T.lastTrailPath = nil
+            if Levelmate.Print then Levelmate.Print(L("Kürzerer Weg erkannt – der Pfeil zeigt jetzt direkt zum Ziel.")) end
+            return nil
+        end
+        -- Neu messen, wenn der Pfeil laenger als 2 Minuten auf dasselbe Ziel zeigt
+        if now - w.t0 > 120 then watch[k] = nil end
+        return wp
+    end
+end

@@ -2,7 +2,7 @@ local addonName = ...
 local L = Levelmate.L
 Levelmate = Levelmate or {}
 Levelmate.name = addonName
-Levelmate.version = "1.1.0"
+Levelmate.version = "1.1.2"
 
 local function Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage(L("|cff66ccffLevelmate|r: ") .. tostring(msg))
@@ -130,6 +130,7 @@ panel:RegisterForDrag("LeftButton")
 panel:SetScript("OnDragStart", function(self) if not (Levelmate_DB and Levelmate_DB.locked) then self:StartMoving() end end)
 panel:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
+    self.movingNow = nil
     local point, _, rel, x, y = self:GetPoint()
     Levelmate_DB.panelPos = { point, rel, x, y }
 end)
@@ -201,6 +202,20 @@ local function OpenQuest(id)
     local idx = C_QuestLog and C_QuestLog.GetLogIndexForQuestID and C_QuestLog.GetLogIndexForQuestID(id)
     if not idx or idx == 0 then
         local q = Levelmate.DB.Quest and Levelmate.DB.Quest(id)
+        -- Noch nicht angenommen: Questgeber auf der Weltkarte zeigen (wie mit M nachschauen)
+        local plan = Levelmate.Planner.Last and Levelmate.Planner.Last()
+        local best
+        for _, a in ipairs(plan and plan.actions or {}) do
+            if a.c and a.c.q and a.c.q.id == id and a.target and a.target.map then
+                if a.kind == "ACCEPT" then best = a; break end
+                best = best or a
+            end
+        end
+        if best and Levelmate.ShowOnMap then
+            Levelmate.ShowOnMap(best.target, q and q.name or tostring(id), best.targetName,
+                L("„%s“ annehmen bei %s, %s (%.1f, %.1f)"))
+            return
+        end
         Print(string.format(L("„%s“ ist noch nicht in deinem Questlog – erst annehmen."), q and q.name or tostring(id)))
         return
     end
@@ -258,7 +273,9 @@ local function EnableQuestLinks(frame)
     frame:SetScript("OnHyperlinkEnter", function(self, link)
         if type(link) ~= "string" or not link:match("^levelmate:q:") then return end
         GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-        GameTooltip:SetText(L("Klicken: Quest im Questlog öffnen"))
+        local qid = tonumber(link:match("^levelmate:q:(%d+)"))
+        local li = qid and C_QuestLog and C_QuestLog.GetLogIndexForQuestID and C_QuestLog.GetLogIndexForQuestID(qid)
+        GameTooltip:SetText((li and li > 0) and L("Klicken: Quest im Questlog öffnen") or L("Klicken: Questgeber auf der Karte zeigen"))
         GameTooltip:Show()
     end)
     frame:SetScript("OnHyperlinkLeave", function() GameTooltip:Hide() end)
@@ -880,6 +897,15 @@ grip:SetScript("OnMouseDown", function()
     panel.cardBottom = panel:GetHeight()
     panel.sizingNow = true
     panel:StartSizing("BOTTOM")
+    -- Sicherung: Maustaste ueber einem anderen Fenster losgelassen (z. B. Questtracker)
+    -- -> OnMouseUp kommt nie an, das Fenster bliebe "am Ziehen" haengen.
+    grip:SetScript("OnUpdate", function(self)
+        if panel.sizingNow and IsMouseButtonDown and not IsMouseButtonDown("LeftButton") then
+            local up = self:GetScript("OnMouseUp")
+            if up then up(self) end
+        end
+        if not panel.sizingNow then self:SetScript("OnUpdate", nil) end
+    end)
 end)
 grip:SetScript("OnMouseUp", function()
     if not panel.sizingNow then return end
@@ -1334,6 +1360,9 @@ local function DescribeAction(act, keepXP)
             for _, wc in ipairs(act.eliteWait) do n[#n + 1] = QuestName(wc) end
             info[#info + 1] = L("|cffffd100Wartet auf:|r ") .. table.concat(n, ", ") .. L(" – danach alles hier in einem Gang.")
         end
+        if act.dungeonEntrance then
+            info[#info + 1] = L("|cffaaaaaaDas Ziel liegt im Dungeon – der Pfeil zeigt zum Eingang.|r")
+        end
         if act.dungeonUnknown then
             info[#info + 1] = L("|cffaaaaaaOrt im Dungeon unbekannt – der Pfeil zeigt zum Questgeber.|r")
         end
@@ -1443,7 +1472,8 @@ function DescribeActionRaw(act)
         for _, dc in ipairs(act.group.list) do table.insert(names, QuestName(dc)) end
         if act.atEntrance then
             return L("|cffff8040Jetzt rein:|r ") .. (act.group.name or "?"),
-                string.format(L("Du stehst am Eingang. Quests im Dungeon:\n%s"), table.concat(names, ", "))
+                #names > 0 and string.format(L("Du stehst am Eingang. Quests im Dungeon:\n%s"), table.concat(names, ", "))
+                or L("Du stehst am Eingang. Keine offenen Quests mehr für diesen Dungeon – „Überspringen“, wenn du nicht rein willst.")
         end
         local more = ""
         if act.upcoming then
@@ -2156,7 +2186,17 @@ local refreshWhy
 local function Refresh()
     local t0 = debugprofilestop and debugprofilestop()
     Levelmate.Planner.lastSections = nil   -- nur die Abschnitte dieser Planung zeigen
-    RefreshInner()
+    -- Fehler beim Anzeigen festhalten (fuer /lm bug) statt das Fenster stehen zu lassen
+    local ok, err = xpcall(RefreshInner, function(e)
+        return tostring(e) .. (debugstack and (" | " .. (debugstack(2, 3, 0) or ""):gsub("\n", " / ")) or "")
+    end)
+    if not ok then
+        Levelmate.lastRefreshError = err
+        -- nicht mit veraltetem Inhalt (z. B. "Questdaten werden geladen") stehen bleiben
+        pcall(SetCard, L("Anzeigefehler"), L("Bitte /lm bug eingeben und den Bericht auf Discord schicken.")
+            .. "\n|cff888888" .. tostring(err):sub(1, 120) .. "|r", nil, nil, { 1, 0.38, 0.38 }, true)
+        if geterrorhandler then pcall(geterrorhandler(), err) end
+    end
     if t0 then Levelmate.Perf.Add("refresh", debugprofilestop() - t0, refreshWhy or L("Zeit/Bewegung"), Levelmate.Planner.lastSections) end
     refreshWhy = nil
 end
@@ -2191,6 +2231,8 @@ RefreshInner = function()
         local list = Q.GetList() or {}
         local instanceID = GetInstanceInfo and select(8, GetInstanceInfo())
         local instArea = Levelmate.DB.InstanceArea and Levelmate.DB.InstanceArea(instanceID)
+        -- neue Forever-Dungeons kennt die Instanz-Tabelle nicht: ueber den Namen
+        if not instArea and Levelmate.DB.ForeverDungeonByName then instArea = Levelmate.DB.ForeverDungeonByName(name) end
         -- "Jetzt hin" aus dem Dungeon-Fenster ist erledigt, sobald du drin bist
         local go = CharDB().dungeonGo
         if go and instArea and Levelmate.DB.SameDungeon(go.area, instArea) then CharDB().dungeonGo = nil end
@@ -2283,7 +2325,7 @@ RefreshInner = function()
 
     Q.Rebuild()
     local plan = Levelmate.Planner.Plan(mode)
-    if not plan.error then AnnounceClassQuests(plan) end
+    if not plan.error then pcall(AnnounceClassQuests, plan) end
     if Levelmate.UpdateItemButton then pcall(Levelmate.UpdateItemButton, currentAction) end
     -- Ab Stufe 40 ohne Reitfertigkeit: einmal je Sitzung an Reiten erinnern
     if not ridingHintShown and (UnitLevel("player") or 0) >= 40 and Levelmate.Planner.HasRidingSkill
@@ -2304,7 +2346,7 @@ RefreshInner = function()
         StaticPopup_Show("LEVELMATE_GREY_STORY", ask.name or "?", nil, ask.root)
     end
 
-    UpdateBar(not plan.error and plan or nil)
+    if not pcall(UpdateBar, not plan.error and plan or nil) then pcall(UpdateBar, nil) end
     if plan.error then
         panel.zone:SetText(Levelmate.DB.Available() and "" or (L("Gebietshinweis: ") .. (Levelmate.Routes and Levelmate.Routes.GetHint(faction, UnitLevel("player") or 1) or "")))
         SetCard(plan.error, "", nil, nil, { 1, 0.38, 0.38 }, true)
@@ -2313,13 +2355,16 @@ RefreshInner = function()
         currentAction = nil
         Levelmate.Arrow.SetTarget(nil)
     else
-        panel.zone:SetText(ZoneLine(plan))
+        local okZ, zl = pcall(ZoneLine, plan)
+        panel.zone:SetText(okZ and zl or "")
         local act = plan.actions[1]
         currentAction = act
         if act and Levelmate.Journal and Levelmate.Journal.Step and Levelmate.Planner.ActionKey then
             pcall(Levelmate.Journal.Step, act, Levelmate.Planner.ActionKey(act))
         end
-        local train = Levelmate.Trainer and Levelmate.Trainer.Suggest and Levelmate.Trainer.Suggest()
+        local okT, train = false, nil
+        if Levelmate.Trainer and Levelmate.Trainer.Suggest then okT, train = pcall(Levelmate.Trainer.Suggest) end
+        if not okT then train = nil end
         if train then
             -- Lehrer in der Naehe: kurz hin, danach geht die Route weiter
             currentAction = train
@@ -2496,7 +2541,7 @@ local function SkipCurrent(perm)
         CharDB().abandonSnooze[act.c.q.id] = UnitLevel("player")
         Print(L("Abbrechen-Vorschlag ausgeblendet: ") .. QuestName(act.c) .. L(" – bis zur nächsten Stufe."))
     elseif act and act.c then
-        Levelmate.Smart.SetDeferred(act.c.q.id, true, perm)
+        Levelmate.Smart.SetDeferred(act.c.q.id, true, perm, act.kind)
         table.insert(CharDB().skipStack, act.c.q.id)
         if perm then
             Print(L("Übersprungen: ") .. QuestName(act.c) .. L(" – kommt nicht mehr in die Route (der Pfeil holt sie zurück)."))
@@ -2504,6 +2549,9 @@ local function SkipCurrent(perm)
             Print(L("Auf später verschoben: ") .. QuestName(act.c) .. L(" – kommt nach einem halben Level wieder (der Pfeil holt sie sofort zurück)."))
         end
     elseif act and act.group then
+        -- "Jetzt hin" aus dem Dungeon-Fenster fuer diesen Dungeon aufheben, sonst bleibt er oben
+        local go = CharDB().dungeonGo
+        if go and act.group.area and Levelmate.DB.SameDungeon(go.area, act.group.area) then CharDB().dungeonGo = nil end
         for _, dc in ipairs(act.group.list) do
             Levelmate.Smart.SetDeferred(dc.q.id, true, perm); table.insert(CharDB().skipStack, dc.q.id)
         end
@@ -2595,7 +2643,18 @@ function Levelmate.BugReport()
             add("Ausgelassen: " .. table.concat(sk, "; "))
         end
     end
+    if Levelmate.Smart and Levelmate.Smart.DeferredList then
+        local later, perm = Levelmate.Smart.DeferredList()
+        local function ids(t) local o = {} for i = 1, math.min(12, #t) do o[i] = tostring(t[i]) end
+            return table.concat(o, ",") .. (#t > 12 and ",…" or "") end
+        if #later > 0 or #perm > 0 then
+            add(string.format("Später: %s | Übersprungen: %s", #later > 0 and ids(later) or "-", #perm > 0 and ids(perm) or "-"))
+        end
+    end
     if P.lastPreviewError then add("Vorschau-Fehler: " .. P.lastPreviewError:sub(1, 200)) end
+    if Levelmate.lastRefreshError then add("Anzeige-Fehler: " .. tostring(Levelmate.lastRefreshError):sub(1, 300)) end
+    if P.PoolState then add("Pool: " .. P.PoolState() .. " | Fenster: " .. (panel:IsShown() and "an" or "aus")
+        .. " | Karte: " .. tostring(panel.stepTitle and panel.stepTitle:GetText() or "?"):sub(1, 60)) end
     -- Questlog zuletzt: wird gekuerzt, damit alles unter 2000 Zeichen bleibt
     local head = table.concat(lines, "\n")
     local budget = 1900 - #head - 12

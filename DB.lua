@@ -50,7 +50,14 @@ local function ZoneTables()
     local override = LoadStringTable(priv.areaIdToUiMapIdOverride) or {}
     for k, v in pairs(base) do areaToMap[k] = v end
     for k, v in pairs(override) do areaToMap[k] = v end
-    dungeons = type(priv.dungeons) == "table" and priv.dungeons or {}
+    dungeons = {}
+    if type(priv.dungeons) == "table" then for k, v in pairs(priv.dungeons) do dungeons[k] = v end end
+    -- Neue Forever-Dungeons, die QuestieDB (noch) nicht als Dungeon fuehrt
+    if DB.ForeverDungeons then
+        for id, f in pairs(DB.ForeverDungeons) do
+            if not dungeons[id] then dungeons[id] = { f.en, nil, nil, { { f.zone, f.x, f.y } } } end
+        end
+    end
     -- Alternative Area-IDs eines Dungeons auf den Haupteintrag zeigen lassen.
     local alias = {}
     for id, d in pairs(dungeons) do
@@ -101,6 +108,13 @@ function DB.Dungeon(areaId)
     local d = dungeons[areaId]
     if not d then return nil end
     local name = dungeonLoc[areaId]
+    local fd = DB.ForeverDungeons and DB.ForeverDungeons[areaId]
+    if not name and fd then
+        local loc = GetLocale and GetLocale() or "enUS"
+        name = (fd.names and fd.names[loc]) or fd.en
+        dungeonLoc[areaId] = name
+        dungeonEn[name] = fd.en
+    end
     if not name then
         name = d[1]
         if C_Map and C_Map.GetAreaInfo then
@@ -117,6 +131,52 @@ function DB.Dungeon(areaId)
         if map then entrance = { map = map, x = loc[2], y = loc[3] } end
     end
     return name, entrance
+end
+
+-- Neue Forever-Dungeons kennt QuestieDB nicht als Dungeon. Eigene Eintraege mit
+-- erfundener (negativer) Area-ID, Eingang (Area-ID der Zone, x, y in Prozent)
+-- und den Quest-IDs, die dazugehoeren.
+DB.ForeverDungeons = {
+    [-1001] = { en = "The Drowned City", names = { deDE = "Die Versunkene Stadt" }, atlas = "TheDrownedCity",
+                zone = 33, x = 21.4, y = 27.9,
+                quests = { 95775, 95776, 95787, 95788, 95789, 95791, 96774 } },
+    [-1002] = { en = "Krol'dok Stronghold", atlas = "KroldokStronghold",
+                zone = 16591, x = 37.5, y = 37.2,
+                quests = { 94968, 94982, 94972, 94984, 94975, 94983, 96771 } },
+    [-1003] = { en = "Alcaz Prison", atlas = "AlcazPrison",
+                zone = 15, x = 75.3, y = 14.1,
+                quests = { 95309, 95454, 96369, 95483, 96334, 96332, 96772 } },
+    [-1004] = { en = "Blackmaw Hold", atlas = "BlackmawHold",
+                zone = 16, x = 38.7, y = 33.4,
+                quests = { 92343, 92344, 97173, 97198, 92066, 92069, 92070, 97327, 92065 } },
+    [-1005] = { en = "The Shaper's Terrace", atlas = "ShapersTerrace",
+                zone = 490, x = 48.1, y = 6.1,
+                quests = { 95928, 97049, 95926, 95924, 95925, 95790 } },
+}
+local foreverQuest
+function DB.ForeverQuestArea(questID)
+    if not foreverQuest then
+        foreverQuest = {}
+        for id, f in pairs(DB.ForeverDungeons) do
+            for _, q in ipairs(f.quests or {}) do foreverQuest[q] = id end
+        end
+    end
+    return questID and foreverQuest[questID]
+end
+-- Forever-Dungeon ueber seinen Namen (z. B. Kopf im Questlog)
+function DB.ForeverDungeonByName(name)
+    if type(name) ~= "string" or name == "" then return nil end
+    local n = name:lower()
+    for id, f in pairs(DB.ForeverDungeons) do
+        if f.en:lower() == n then return id end
+        for _, v in pairs(f.names or {}) do if v:lower() == n then return id end end
+    end
+end
+function DB.ForeverDungeonEntrance(name)
+    local id = DB.ForeverDungeonByName(name)
+    if not id then return nil end
+    local _, entrance = DB.Dungeon(id)
+    return entrance
 end
 
 ---------------------------------------------------------------------------
